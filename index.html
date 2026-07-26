@@ -438,7 +438,7 @@ footer ul{list-style:none}footer li{padding:3px 0}
 <!-- ══ 06 THAIWATER STATIONS ══ -->
 <section id="twstations"><div class="wrap">
   <div class="shead rv"><span class="kick">// 06 · ระดับน้ำจริง</span><h2>สถานีวัดระดับน้ำ <em>ThaiWater (สสน.)</em> จ.สงขลา</h2><p>ข้อมูลสดจาก songkhla.thaiwater.net ผ่าน proxy · สถานีสำคัญ: คลองอู่ตะเภา (คูเต่า) · คลองหวะ (คอหงส์) · ต้นน้ำสะเดา</p></div><div class="rule"></div>
-  <div class="twset rv"><input type="text" id="twUrl" placeholder="http://localhost:5001" value="http://localhost:5001"><button class="btn" id="twConnect">เชื่อมต่อ proxy</button><span class="chip cy mono" id="twStatus">รอเชื่อมต่อ</span></div>
+  <div class="twset rv"><input type="text" id="twUrl" placeholder="https://hatyai-flood-api.onrender.com" value="https://hatyai-flood-api.onrender.com"><button class="btn" id="twConnect">เชื่อมต่อ proxy</button><span class="chip cy mono" id="twStatus">รอเชื่อมต่อ</span></div>
   <div class="twgrid" id="twGrid"><div class="card" style="grid-column:1/-1"><p style="color:var(--mut);font-size:13px">รัน <code class="mono" style="color:var(--cyan2)">python thaiwater_proxy.py</code> แล้วกด "เชื่อมต่อ proxy" · ถ้ายังไม่มี proxy จะแสดงข้อมูลจำลอง</p></div></div>
 </div></section>
 
@@ -778,7 +778,7 @@ async function fetchDMR(){api.dmr.st='wait';pill('dmr');const t0=performance.now
   }catch(e){api.dmr={st:'err'};log('API','ERR','DMR: '+e.message);}
   pill('dmr');srcChip('#srcDmr',api.dmr);syncChip();}
 /* ═══ ThaiWater proxy ═══ */
-let TW_PROXY=localStorage.getItem('twProxy')||'http://localhost:5001';
+let TW_PROXY=localStorage.getItem('twProxy')||'https://hatyai-flood-api.onrender.com';
 $('#twUrl').value=TW_PROXY;
 async function fetchTW(){api.tw.st='wait';pill('tw');$('#twStatus').textContent='กำลังเชื่อมต่อ…';const t0=performance.now();
   try{const r=await fetch(TW_PROXY.replace(/\/$/,'')+'/tw/stations',{signal:AbortSignal.timeout?AbortSignal.timeout(10000):undefined});
