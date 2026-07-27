@@ -120,7 +120,7 @@ def _tmd_get(path, params):
 def tmd_proxy():
     if not TMD_TOKEN:
         return jsonify({"error":"ยังไม่ได้ตั้ง TMD_TOKEN","has_token":False}),503
-    path = request.args.get("path","/forecast/daily/at")
+    path = request.args.get("path","/forecast/location/daily")
     q    = request.args.get("q","{}")
     ck = f"tmd:{path}:{q}"; cached,hit = cget(ck)
     if hit:
@@ -213,7 +213,49 @@ def tw_debug():
             "has_html_table":"<td" in r.text,"has_embedded_json":"stationData" in r.text or '"stations"' in r.text})
     except Exception as e:
         return jsonify({"error":str(e)})
-
+# ═══════════════ HIMAWARI-9 via NASA GIBS (discover layer จาก capabilities — ไม่เดา) ═══════════════
+GIBS_CAPS = "https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/1.0.0/WMTSCapabilities.xml"
+def _parse_gibs(xml):
+    out=[]
+    for m in re.finditer(r'<Layer>(.*?)</Layer>', xml, re.S):
+        blk=m.group(1)
+        idm=re.search(r'<ows:Identifier>(.*?)</ows:Identifier>', blk, re.S)
+        if not idm: continue
+        lid=idm.group(1).strip()
+        if not re.search(r'himawari|ahi', lid, re.I): continue
+        ttm=re.search(r'<ows:Title>(.*?)</ows:Title>', blk, re.S); title=ttm.group(1).strip() if ttm else lid
+        tmsm=re.search(r'<TileMatrixSet>(.*?)</TileMatrixSet>', blk, re.S); tms=tmsm.group(1).strip() if tmsm else 'GoogleMapsCompatible_Level9'
+        fmt='png'; fm=re.search(r'<Format>(.*?)</Format>', blk, re.S)
+        if fm: fmt='jpg' if 'jpeg' in fm.group(1) else 'png'
+        times=[]; dim=re.search(r'<Dimension>.*?<ows:Identifier>\s*Time\s*</ows:Identifier>(.*?)</Dimension>', blk, re.S)
+        if dim: times=re.findall(r'<Value>(.*?)</Value>', dim.group(1), re.S)
+        isIR=bool(re.search(r'brightness|infrared|\bIR\b|band.?1[345]|band.?0?[789]', lid+title, re.I))
+        isVis=bool(re.search(r'correctedreflectance|truecolor|visible|band.?0?[123]', lid+title, re.I))
+        out.append({"id":lid,"title":title,"tms":tms,"fmt":fmt,"isIR":isIR,"isVis":isVis,
+                    "latest":times[-1] if times else None,"n_times":len(times),"subdaily":len(times)>2})
+    return out
+@app.route("/himawari/layers")
+def himawari_layers():
+    ck="himawari:layers"; cached,hit=cget(ck)
+    if hit:
+        r=jsonify(cached); r.headers["X-Cache"]="HIT"; r.headers["Cache-Control"]="max-age=3600"; return r
+    try:
+        rr=requests.get(GIBS_CAPS, headers={"User-Agent":"HTY-FloodCommand/5.0"}, timeout=30); rr.raise_for_status()
+        layers=_parse_gibs(rr.text)
+        payload={"source":"NASA GIBS WMTS epsg3857 (Himawari-9)","count":len(layers),"layers":layers,
+                 "note":"layer id/time/tms ดึงจาก capabilities จริง · count=0 → GIBS ไม่มี Himawari ใน projection นี้ (เว็บจะ fallback RainViewer IR)"}
+        cset(ck,payload,3600); r=jsonify(payload); r.headers["X-Cache"]="MISS"; r.headers["Cache-Control"]="max-age=3600"; return r
+    except Exception as e:
+        return jsonify({"error":str(e),"count":0,"layers":[]}),502
+@app.route("/himawari/caps")
+def himawari_caps():
+    """debug: GIBS มีคำว่า himawari/ahi ไหม + snippet รอบๆ"""
+    try:
+        rr=requests.get(GIBS_CAPS, headers={"User-Agent":"HTY-FloodCommand/5.0"}, timeout=30); t=rr.text; i=t.lower().find('himawari')
+        return jsonify({"len":len(t),"has_himawari":i>=0 or 'ahi' in t.lower(),
+                        "snippet":(t[max(0,i-200):i+600] if i>=0 else t[:600])})
+    except Exception as e:
+        return jsonify({"error":str(e)})
 if __name__ == "__main__":
     print("="*54)
     print("  ThaiWater + TMD Proxy v2 — HTY FLOOD COMMAND")

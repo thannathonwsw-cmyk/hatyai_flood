@@ -416,7 +416,13 @@ footer ul{list-style:none}footer li{padding:3px 0}
         <span class="mono" id="rvTime">--:--</span>
         <span class="chip green" id="rvMode">รอ…</span>
         <span style="width:1px;height:20px;background:var(--line)"></span>
-        <button class="layerbtn on" id="lyrRadar">🌧 เรดาร์</button>
+               <button class="layerbtn on" id="lyrRadar">🌧 เรดาร์</button>
+        <button class="layerbtn" id="lyrHimIR">🛰 Himawari IR</button>
+        <button class="layerbtn" id="lyrHimVis">🌈 Himawari สี</button>
+        <button class="layerbtn" id="lyrIR">☁️ IR(RV)</button>
+        <button class="layerbtn" id="lyrTerra">🌍 Terra</button>
+        <span class="chip vi mono" id="satTime">ดาวเทียม: —</span>
+        <span class="chip cy mono" id="rvRainChip">🛰 คำนวณ…</span> <button class="layerbtn on" id="lyrRadar">🌧 เรดาร์</button>
         <button class="layerbtn" id="lyrTerra">🌍 Terra</button>
         <button class="layerbtn" id="lyrIR">☁️ IR</button>
         <span class="chip cy mono" id="rvRainChip">🛰 คำนวณ…</span>
@@ -441,6 +447,7 @@ footer ul{list-style:none}footer li{padding:3px 0}
 <!-- ══ 04 WEATHER ══ -->
 <section id="weather"><div class="wrap">
   <div class="shead rv"><span class="kick">// 04 · อากาศ</span><h2>อากาศ + <em>พยากรณ์ 7 วัน</em></h2><p>Open-Meteo + met.no ensemble</p></div><div class="rule"></div>
+    <div class="card rv" id="fcPrioBanner" style="margin-bottom:16px;border-color:rgba(255,210,63,.3)"></div>
   <div class="wxgrid">
     <div class="wtile rv"><div><div class="wl">อุณหภูมิ / รู้สึก</div><div class="wv"><span id="wTemp">–</span><small>°C</small> <span style="font-size:12px;color:var(--mut)" id="wFeels"></span></div></div></div>
     <div class="wtile rv"><div><div class="wl">ความชื้น / น้ำค้าง</div><div class="wv"><span id="wHum">–</span><small>%</small> <span style="font-size:12px;color:var(--mut)" id="wDew"></span></div></div></div>
@@ -605,7 +612,7 @@ const DIRS=['เหนือ','ตอ.เฉียงเหนือ','ตะว
 let OM=null,YR=null,omNext3=null,acc24=null,acc7d=null,curRain=null,ciIdx=168;
 const rvRain={ok:false,acc2h:0,rate:0,frames:0};
 const TW={ok:false,stations:[],utaphao:null};
-let score=0,riskHistory=[];
+let score=0,riskHistory=[],TMD_HAS_FC=false;
 const median=a=>{const s=[...a].sort((x,y)=>x-y),m=s.length>>1;return s.length%2?s[m]:(s[m-1]+s[m])/2;};
 
 /* ═══ HARMONIC TIDE — Songkhla ═══ */
@@ -691,7 +698,7 @@ async function fetchOM(){api.om.st='wait';pill('om');const t0=performance.now();
   try{const u=`https://api.open-meteo.com/v1/forecast?latitude=${HY.lat}&longitude=${HY.lon}&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,cloud_cover,wind_speed_10m,wind_direction_10m,wind_gusts_10m,surface_pressure&hourly=precipitation_probability,precipitation&daily=weather_code,precipitation_sum,precipitation_probability_max,wind_speed_10m_max,temperature_2m_max,temperature_2m_min&past_days=7&forecast_days=7&timezone=Asia%2FBangkok`;
     OM=await cachedFetch(u,10*60000,'om');api.om={st:'ok',ms:Math.round(performance.now()-t0)};procOM();log('API','INFO',`OM OK ฝน24ชม ${acc24?.toFixed(1)}มม.`);
   }catch(e){api.om={st:'err'};log('API','ERR','OM: '+e.message);}
-  pill('om');srcChip('#srcOm',api.om);syncChip();renderRainBoards();computeRisk();updateCompare();buildTicker();}
+    pill('om');srcChip('#srcOm',api.om);syncChip();renderRainBoards();computeRisk();updateCompare();buildTicker();renderForecastPriority();}
 function procOM(){const c=OM.current,H=OM.hourly,D=OM.daily;
   ciIdx=H.time.findIndex(t=>t.slice(0,13)===c.time.slice(0,13));if(ciIdx<0)ciIdx=168;
   const sum=a=>a.reduce((x,y)=>x+(y||0),0);
@@ -747,7 +754,7 @@ async function fetchYr(){api.yr.st='wait';pill('yr');const t0=performance.now();
     YR=j.properties.timeseries.slice(0,24).map(t=>({time:t.time,sym:(t.data.next_1_hours||t.data.next_6_hours||{}).summary?.symbol_code,p1:t.data.next_1_hours?.details?.precipitation_amount,temp:t.data.instant.details.air_temperature,wind:t.data.instant.details.wind_speed}));
     api.yr={st:'ok',ms:Math.round(performance.now()-t0)};renderYr();log('API','INFO',`met.no OK`);
   }catch(e){api.yr={st:'err'};YR=null;$('#yrStrip').innerHTML='<span style="color:var(--red);font-size:12px">met.no: '+e.message+'</span>';log('API','ERR','met.no: '+e.message);}
-  pill('yr');srcChip('#srcYr',api.yr);syncChip();renderRainBoards();updateCompare();buildNowcast();buildTicker();}
+    pill('yr');srcChip('#srcYr',api.yr);syncChip();renderRainBoards();updateCompare();buildNowcast();buildTicker();renderForecastPriority();}
 function renderYr(){$('#yrStrip').innerHTML=YR.slice(0,12).map(r=>{const[txt,icn]=yrInfo(r.sym);
   return `<div class="yrcell"><div class="yt">${new Date(r.time).toLocaleTimeString('th-TH',{...TZ,hour:'2-digit',minute:'2-digit'})}</div>${icon(icn,26)}<div class="yp">${(r.p1??0).toFixed(1)}</div><div class="yc">${r.temp?.toFixed(0)}° ${txt}</div></div>`;}).join('');}
 function updateCompare(){const lines=[];if(OM)lines.push(['🌐 OM วันนี้',OM.daily.precipitation_sum[0]]);if(YR)lines.push(['⏱ Yr 12ชม.',YR.slice(0,12).reduce((a,r)=>a+(r.p1||0),0)]);if(rvRain.ok)lines.push(['🛰 RV อัตรา×24',rvRain.rate*24]);
@@ -758,30 +765,53 @@ function buildNowcast(){let p=[];if(rvRain.ok)p.push(`🛰 เรดาร์: $
   $('#nowcastTxt').innerHTML=p.length?p.join(' · '):'รอ API…';}
 
 /* ═══ RAINVIEWER + SATELLITE (cached 5 นาที) ═══ */
-let radarMap=null,radarLayer=null,terraLayer=null,irLayer=null,rvFrames=[],satFrames=[],rvPastCount=0,rvIdx=0,rvTimer=null,rvPlaying=true,rvHost='https://tilecache.rainviewer.com',activeLayer='radar';
+let radarMap=null,radarLayer=null,terraLayer=null,irLayer=null,himawariLayer=null,himawariLayers=[],activeHimType='IR';
+let rvFrames=[],satFrames=[],rvPastCount=0,rvIdx=0,rvTimer=null,rvPlaying=true,rvHost='https://tilecache.rainviewer.com',activeLayer='radar';
 function initRadar(){if(!window.L)return;radarMap=L.map('radarMap').setView([HY.lat,HY.lon],7);
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{maxZoom:12,attribution:'©OSM ©CARTO · NASA GIBS · RainViewer · DMR'}).addTo(radarMap);
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{maxZoom:12,attribution:'©OSM ©CARTO · NASA GIBS · JMA Himawari-9 · RainViewer · DMR'}).addTo(radarMap);
   L.circle([HY.lat,HY.lon],{radius:55000,color:'#3fd0f0',weight:1,dashArray:'6 6',fill:false,opacity:.4}).addTo(radarMap);
   radarLayer=L.tileLayer('',{opacity:.72,maxZoom:12}).addTo(radarMap);
   irLayer=L.tileLayer('',{opacity:.6,maxZoom:8});
-  // Terra MODIS True Color (NASA GIBS) — date = เมื่อวาน (UTC) เพราะ Terra ประมวลล่าช้า ~1 วัน
   const yd=new Date(Date.now()-2*864e5).toISOString().slice(0,10);
-  terraLayer=L.tileLayer(`https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/MODIS_Terra_CorrectedReflectance_TrueColor/default/${yd}/GoogleMapsCompatible_Level9/{z}/{y}/{x}.jpg`,{maxZoom:8,attribution:'NASA GIBS / MODIS Terra'});
-  $('#satDate').textContent=`Terra True Color: ${yd} (ล่าช้า ~1-2 วัน) · RainViewer · © OSM/CARTO`;
-  api.sat={st:'ok',ms:0};pill('sat');srcChip('#srcSat',api.sat);}
-function setLayer(name){activeLayer=name;
-  ['lyrRadar','lyrTerra','lyrIR'].forEach(id=>$('#'+id).classList.remove('on'));
-  $('#lyr'+name.charAt(0).toUpperCase()+name.slice(1)).classList.add('on');
-  if(!radarMap)return;
-  if(radarMap.hasLayer(radarLayer))radarMap.removeLayer(radarLayer);
-  if(radarMap.hasLayer(terraLayer))radarMap.removeLayer(terraLayer);
-  if(radarMap.hasLayer(irLayer))radarMap.removeLayer(irLayer);
+  terraLayer=L.tileLayer(`https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/MODIS_Terra_CorrectedReflectance_TrueColor/default/${yd}/GoogleMapsCompatible_Level9/{z}/{y}/{x}.jpg`,{maxZoom:8,opacity:.85,attribution:'NASA GIBS / MODIS Terra (fallback สี)'});
+  $('#satTime').textContent='กำลังโหลด Himawari-9…';}
+const ALL_LYR=['lyrRadar','lyrTerra','lyrIR','lyrHimIR','lyrHimVis'];
+function clearOverlays(){if(!radarMap)return;[radarLayer,terraLayer,irLayer,himawariLayer].forEach(l=>{if(l&&radarMap.hasLayer(l))radarMap.removeLayer(l);});}
+function setLayer(name){activeLayer=name;ALL_LYR.forEach(id=>{const e=$('#'+id);if(e)e.classList.remove('on');});
+  const btn=$('#lyr'+({radar:'Radar',terra:'Terra',ir:'IR',himir:'HimIR',himvis:'HimVis'}[name]));if(btn)btn.classList.add('on');
+  if(!radarMap)return;clearOverlays();
   if(name==='radar')radarLayer.addTo(radarMap);
-  else if(name==='terra'){terraLayer.addTo(radarMap);radarMap.setZoom(5);}
-  else if(name==='ir')irLayer.addTo(radarMap);}
-$('#lyrRadar').addEventListener('click',()=>setLayer('radar'));
-$('#lyrTerra').addEventListener('click',()=>setLayer('terra'));
-$('#lyrIR').addEventListener('click',()=>setLayer('ir'));
+  else if(name==='terra'){terraLayer.addTo(radarMap);$('#satTime').textContent='MODIS Terra สี (fallback · ล่าช้า ~1 วัน)';}
+  else if(name==='ir'){irLayer.addTo(radarMap);$('#satTime').textContent='RainViewer IR (fallback · ~10 นาที)';}
+  else if(name==='himir')loadHimawari('IR');
+  else if(name==='himvis')loadHimawari('VIS');}
+['Radar','Terra','IR','HimIR','HimVis'].forEach(k=>{const e=$('#lyr'+k);if(e)e.addEventListener('click',()=>setLayer({Radar:'radar',Terra:'terra',IR:'ir',HimIR:'himir',HimVis:'himvis'}[k]));});
+/* ── Himawari-9 ผ่าน GIBS: reproject แล้ว → ตรงพิกัด · 10 นาที · discover layer จาก capabilities ── */
+function utcToIct(t){const hasT=String(t).includes('T');const d=new Date(hasT?t:(t+'T00:00:00Z'));
+  if(!hasT&&String(t).length<=10)return d.toLocaleDateString('th-TH',{...TZ,day:'numeric',month:'short',year:'numeric'});
+  return d.toLocaleString('th-TH',{...TZ,weekday:'short',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})+' ICT';}
+function loadHimawari(type){activeHimType=type;
+  const ly=himawariLayers.find(l=>type==='IR'?l.isIR:l.isVis)||himawariLayers.find(l=>type==='IR'?l.isVis:l.isIR)||himawariLayers[0];
+  if(!ly||!radarMap){setSatFallback(type);return;}
+  if(himawariLayer){radarMap.removeLayer(himawariLayer);himawariLayer=null;}
+  const time=ly.latest||new Date().toISOString().slice(0,10);
+  const url=`https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/${encodeURIComponent(ly.id)}/default/${encodeURIComponent(time)}/${encodeURIComponent(ly.tms)}/{z}/{y}/{x}.${ly.fmt}`;
+  himawariLayer=L.tileLayer(url,{maxZoom:8,opacity:.82,attribution:'NASA GIBS / JMA Himawari-9 (10 นาที)'});
+  if(activeLayer==='himir'||activeLayer==='himvis')himawariLayer.addTo(radarMap);
+  $('#satTime').innerHTML=`🛰 Himawari-9 ${type==='IR'?'IR':'สี'} · ${utcToIct(time)} · ${ly.subdaily?'10 นาที':'รายวัน'}`;}
+function setSatFallback(type){if(himawariLayer&&radarMap.hasLayer(himawariLayer)){radarMap.removeLayer(himawariLayer);himawariLayer=null;}
+  if(type==='VIS'&&radarMap){terraLayer.addTo(radarMap);$('#satTime').textContent='GIBS ไม่มี Himawari สี → MODIS Terra (fallback)';}
+  else if(radarMap){irLayer.addTo(radarMap);$('#satTime').textContent='GIBS ไม่มี Himawari IR → RainViewer IR (fallback · ~10 นาที)';}}
+async function fetchHimawari(){api.sat.st='wait';pill('sat');
+  try{const j=await fetch(PROXY.replace(/\/$/,'')+'/himawari/layers').then(r=>r.json());
+    himawariLayers=j.layers||[];api.sat={st:'ok',ms:0};
+    if(himawariLayers.length){const nIR=himawariLayers.filter(l=>l.isIR).length,nV=himawariLayers.filter(l=>l.isVis).length;
+      log('API','INFO',`GIBS Himawari-9: ${himawariLayers.length} layer (IR ${nIR}/สี ${nV})`);
+      if(activeLayer==='himir'||activeLayer==='himvis')loadHimawari(activeHimType);
+      else $('#satTime').innerHTML=`🛰 Himawari-9 พร้อม (${himawariLayers.length} layer) — กดปุ่ม Himawari`;}
+    else{$('#satTime').textContent='GIBS ไม่มี layer Himawari → ปุ่ม Himawari จะ fallback IR';log('API','WARN','GIBS: ไม่พบ layer Himawari/AHI (epsg3857)');}
+  }catch(e){api.sat={st:'err'};$('#satTime').textContent='โหลด Himawari ไม่ได้ → RainViewer IR';log('API','ERR','Himawari/GIBS: '+e.message);}
+  pill('sat');srcChip('#srcSat',api.sat);syncChip();}
 async function fetchRV(){api.rv.st='wait';pill('rv');const t0=performance.now();
   try{const j=await cachedFetch('https://api.rainviewer.com/public/weather-maps.json',5*60000,'rv');
     rvHost=j.host||rvHost;const past=(j.radar?.past||[]).slice(-14),now=j.radar?.nowcast||[];
@@ -890,6 +920,7 @@ function _rain(d){return (d&&(d.pc!=null?d.pc:(d.pr!=null?d.pr:null)))||0;}
 function _tmdRange(o){if(!o||typeof o!=='object')return null;for(const k in o){const v=o[k];if(v&&typeof v==='object'&&v.min&&v.max)return v;}return null;}
 
 function renderTMD(daily,hourly,mode){
+    TMD_HAS_FC=!!((daily&&daily.WeatherForecasts&&daily.WeatherForecasts[0]&&daily.WeatherForecasts[0].forecasts&&daily.WeatherForecasts[0].forecasts.length)||(hourly&&hourly.WeatherForecasts&&hourly.WeatherForecasts[0]&&hourly.WeatherForecasts[0].forecasts&&hourly.WeatherForecasts[0].forecasts.length));renderForecastPriority();
   const df=_tmdFc(daily),hf=_tmdFc(hourly),rng=_tmdRange(daily)||_tmdRange(hourly);
   // ── กรณีมี forecast จริง (พร้อมสลับอัตโนมัติถ้าวันหลัง token ปล่อย data) ──
   if(df.length||hf.length){
@@ -915,6 +946,17 @@ function renderTMD(daily,hourly,mode){
      <div class="infobox" style="margin-top:14px;border-color:rgba(63,208,240,.3)"><h4>💡 พยากรณ์หลักของคุณทำงานปกติ</h4><p>หัวข้อ 04 (พยากรณ์ 7 วัน + รายชั่วโมง) ดึงจาก Open-Meteo + met.no ซึ่งครอบคลุมประเทศไทยและแม่นยำสูง — ใช้ประกอบการเฝ้าระวังได้ทันทีโดยไม่ต้องรอ TMD</p></div>
    </div>`;}
 /* ticker */
+function renderForecastPriority(){const el=$('#fcPrioBanner');if(!el)return;
+  const tmdSt=TMD_HAS_FC?'มี forecast ✅':'เชื่อมต่อได้ แต่ free token ยังไม่ปล่อย forecast';
+  const prim=TMD_HAS_FC?'TMD':(OM?'Open-Meteo':(YR?'met.no':'—'));
+  el.innerHTML=`<h4 style="font-family:var(--disp);font-size:14px;font-weight:700;margin-bottom:8px">🔀 ลำดับแหล่งพยากรณ์ (TMD นำ)</h4>
+   <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;font-size:12.5px">
+     <span class="chip ${TMD_HAS_FC?'green':'yellow'}">① TMD กรมอุตุฯ — ${tmdSt}</span><span style="color:var(--dim)">→</span>
+     <span class="chip ${(!TMD_HAS_FC&&OM)?'cy':'green'}">② Open-Meteo ${(!TMD_HAS_FC&&OM)?'<b>← แสดงอยู่</b>':''}</span><span style="color:var(--dim)">→</span>
+     <span class="chip ${(!TMD_HAS_FC&&!OM&&YR)?'cy':'green'}">③ met.no ${(!TMD_HAS_FC&&!OM&&YR)?'<b>← แสดงอยู่</b>':''}</span></div>
+   <p style="font-size:11.5px;color:var(--dim);margin-top:8px">ระบบ "ลอง TMD ก่อนเสมอ" — วันหลัง token ปล่อย forecast จริง การ์ด TMD จะขึ้นลำดับ 1 ทันทีโดยไม่ต้องแก้โค้ด · ตอนนี้พยากรณ์ด้านล่างดึงจาก <b style="color:var(--cyan2)">${prim}</b> · บอร์ดฝนสะสม 24ชม/7วัน เป็นข้อมูลย้อนหลัง (TMD NWP ไม่มี) → ยังคง เรดาร์→OM→met.no</p>`;}
+
+
 function buildTicker(){const it=[];
   if(rvRain.ok)it.push(`<b>🛰 เรดาร์ median</b> ฝน@หาดใหญ่ ${rvRain.acc2h.toFixed(1)}มม./2ชม. อัตรา ${rvRain.rate.toFixed(1)}/ชม.`);
   if(acc24!=null)it.push(`<b>OM</b> ฝน24ชม ${acc24.toFixed(1)}มม. · 7วัน ${acc7d.toFixed(1)}มม.`);
@@ -1031,7 +1073,7 @@ setInterval(()=>{computeRisk();},6000);
 
 /* fetch all */
 async function fetchAll(){$('#refreshBtn').textContent='↻ …';
-  await Promise.allSettled([fetchRV(),fetchOM(),fetchYr(),fetchMarea(),fetchDMR(),fetchTW(),fetchTMD()]);
+    await Promise.allSettled([fetchRV(),fetchOM(),fetchYr(),fetchMarea(),fetchDMR(),fetchTW(),fetchTMD(),fetchHimawari()]);
   $('#refreshBtn').textContent='↻ รีเฟรช';}
 $('#refreshBtn').addEventListener('click',fetchAll);
 fetchAll();startRv();
