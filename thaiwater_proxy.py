@@ -141,24 +141,33 @@ def tmd_proxy():
 
 @app.route("/tmd/test")
 def tmd_test():
-    """วินิจฉัย: เช็ก auth + ดูว่า field ฝนตัวไหน (pc/pr) TMD คืนค่ามาจริง"""
+    """PATH DISCOVERY: ลองทุก path × base → หา endpoint ที่ exist (status != 404)"""
     if not TMD_TOKEN:
-        return jsonify({"has_token":False,"hint":"ตั้ง TMD_TOKEN ตัวเดียวพอ (token ยาวๆ) — ไม่ต้องมี uid"}),503
-    out = {}
-    def grab(path, params):
-        try:
-            rr = _tmd_get(path, params)
-            isj = rr.headers.get('content-type','').startswith('application/json')
-            return {"status":rr.status_code,
-                    "datapoint_left":rr.headers.get("X-Datapoint-Remaining"),
-                    "data":(rr.json() if isj else rr.text[:400])}
-        except Exception as e:
-            return {"status":"ERR","data":str(e)}
-    out["datarange"] = grab("/forecast/daily/datarange", {})                 # เบาสุด ใช้เช็ก auth
-    out["daily_at"]  = grab("/forecast/daily/at",  {"lat":HY_LAT,"lon":HY_LON,"fields":TMD_FIELDS,"duration":7})
+        return jsonify({"has_token":False}),503
+    bases = [TMD_BASE, "https://data.tmd.go.th/nwpapi"]
+    paths = ["/forecast/daily/at","/forecast/hourly/at","/forecast/daily/place","/forecast/hourly/place",
+             "/forecast/daily","/forecast/hourly","/forecasts/daily","/forecasts/hourly",
+             "/forecast/at/daily","/forecast/at/hourly","/forecast/location/daily","/forecast/location/hourly"]
     today = datetime.date.today().isoformat()
-    out["hourly_at"] = grab("/forecast/hourly/at", {"lat":HY_LAT,"lon":HY_LON,"fields":TMD_FIELDS,"date":today,"hour":0,"duration":24})
-    return jsonify(out)
+    probe = {"lat":HY_LAT,"lon":HY_LON,"fields":TMD_FIELDS,"date":today,"hour":0,"duration":3,
+             "province":"สงขลา","amphoe":"หาดใหญ่"}   # ใส่ครอบจักรวาล (404 เกิดก่อนตรวจ param)
+    h = {"accept":"application/json","authorization":f"Bearer {TMD_TOKEN}","User-Agent":"HTY-FloodCommand/5.0"}
+    results=[]; candidates=[]
+    for base in bases:
+        for path in paths:
+            try:
+                r = requests.get(base+path, params=probe, headers=h, timeout=8); st = r.status_code
+                msg = ""
+                try:
+                    msg = r.json().get("message","") if r.headers.get('content-type','').startswith('application/json') else r.text[:60]
+                except Exception: msg = r.text[:60]
+                short = base.replace("https://data.tmd.go.th","")
+                results.append({"base":short,"path":path,"status":st,"msg":msg})
+                if st != 404: candidates.append({"base":base,"path":path,"status":st,"msg":msg})
+            except Exception as e:
+                results.append({"base":base.replace("https://data.tmd.go.th",""),"path":path,"status":"ERR","msg":str(e)[:60]})
+    return jsonify({"note":"status != 404 = endpoint นี้มีจริง (param อาจยังต้องปรับ) | 404 = path ไม่มี",
+                    "candidates":candidates, "all":results})
 
 # ═══════════════ debug / stats ═══════════════
 @app.route("/cache/stats")
