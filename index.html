@@ -345,6 +345,14 @@ footer ul{list-style:none}footer li{padding:3px 0}
 .disc{margin-top:22px;border-top:1px dashed var(--line);padding-top:14px;font-size:11px;color:var(--dim);text-align:center}
 .rv{opacity:0;transform:translateY(18px);transition:opacity .7s,transform .7s}.rv.on{opacity:1;transform:none}
 @media(max-width:1020px){.deck,.mapgrid,.aigrid,.adm2,.tcardswrap,.calwrap{grid-template-columns:1fr}.wxgrid{grid-template-columns:repeat(2,1fr)}.fcstrip{grid-template-columns:repeat(4,1fr)}.camgrid,.twgrid,.tmdgrid,.srcgrid{grid-template-columns:1fr 1fr}.fgrid{grid-template-columns:1fr}}
+#satTime{transition:box-shadow .3s,background .3s}
+#satTime .satdot{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--cyan);margin-right:5px;vertical-align:1px;animation:blink 1s infinite}
+#satTime.sat-ok{box-shadow:0 0 9px rgba(47,208,140,.35)}
+#satTime.sat-err{box-shadow:0 0 9px rgba(255,82,82,.35)}
+.tilechip{font-family:var(--mono);font-size:9px;padding:1px 6px;border-radius:4px;margin-left:6px;border:1px solid}
+.tilechip.ok{color:var(--green);border-color:rgba(47,208,140,.5)}
+.tilechip.bad{color:var(--red);border-color:rgba(255,82,82,.5)}
+.tilechip.wait{color:var(--yellow);border-color:rgba(255,210,63,.5)}
 @media(max-width:640px){.tiles{grid-template-columns:1fr 1fr}.fcstrip,.camgrid,.raingrid,.srcgrid,.hcards,.twgrid,.tmdgrid{grid-template-columns:1fr}.clockbox{margin-left:0}}
 </style>
 </head>
@@ -787,24 +795,39 @@ function setLayer(name){activeLayer=name;ALL_LYR.forEach(id=>{const e=$('#'+id);
   else if(name==='himvis')loadHimawari('VIS');}
 ['Radar','Terra','IR','HimIR','HimVis'].forEach(k=>{const e=$('#lyr'+k);if(e)e.addEventListener('click',()=>setLayer({Radar:'radar',Terra:'terra',IR:'ir',HimIR:'himir',HimVis:'himvis'}[k]));});
 /* ── Himawari-9 ผ่าน GIBS: reproject แล้ว → ตรงพิกัด · 10 นาที · discover layer จาก capabilities ── */
-function utcToIct(t){const hasT=String(t).includes('T');const d=new Date(hasT?t:(t+'T00:00:00Z'));
-  if(!hasT&&String(t).length<=10)return d.toLocaleDateString('th-TH',{...TZ,day:'numeric',month:'short',year:'numeric'});
+function utcToIct(t){if(!t||String(t).includes('/'))return '<span class="satdot"></span>ล่าสุด (realtime)';
+  const d=new Date(String(t).includes('T')?t:(t+'T00:00:00Z'));
+  if(isNaN(d))return '<span class="satdot"></span>'+String(t);
   return d.toLocaleString('th-TH',{...TZ,weekday:'short',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})+' ICT';}
+function himUrl(ly,time){return `https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/${encodeURIComponent(ly.id)}/default/${encodeURIComponent(time)}/${encodeURIComponent(ly.tms)}/{z}/{y}/{x}.${ly.fmt}`;}
+function satLabel(type,ly,when,chipHtml){$('#satTime').className='chip vi mono '+(when==='ok'?'sat-ok':when==='err'?'sat-err':'');
+  $('#satTime').innerHTML=`🛰 Himawari-9 ${type==='IR'?'IR':'สี'} · ${utcToIct(ly&&ly.latest)} · ${ly&&ly.subdaily?'10 นาที':'รายวัน'} <span style="opacity:.55;font-size:10px">[${ly?ly.id:'—'}]</span>${chipHtml||''}`;}
+function probeTile(url,ly,type){const t=url.replace('{z}','2').replace('{y}','2').replace('{x}','3');
+  fetch(t,{method:'HEAD',mode:'cors'}).then(r=>{if(r.ok)satLabel(type,ly,'ok',`<span class="tilechip ok">tile ${r.status} ✅</span>`);
+    else satLabel(type,ly,'err',`<span class="tilechip bad">tile ${r.status} → ลอง default</span>`),tryDefaultTime(ly,type);
+  }).catch(()=>satLabel(type,ly,'err',`<span class="tilechip bad">CORS → ลอง default</span>`)||tryDefaultTime(ly,type));}
+function tryDefaultTime(ly,type){if(himawariLayer){radarMap.removeLayer(himawariLayer);himawariLayer=null;}
+  const url=himUrl(ly,'default');himawariLayer=L.tileLayer(url,{maxZoom:8,opacity:.82,attribution:'NASA GIBS / JMA Himawari-9'});
+  let e=0;himawariLayer.on('tileerror',()=>{if(++e>=3){setSatFallback(type);satLabel(type,ly,'err',`<span class="tilechip bad">default พัง → IR</span>`);}});
+  if(activeLayer==='himir'||activeLayer==='himvis')himawariLayer.addTo(radarMap);
+  satLabel(type,ly,'','<span class="tilechip wait">default…</span>');
+  const t=url.replace('{z}','2').replace('{y}','2').replace('{x}','3');
+  fetch(t,{method:'HEAD',mode:'cors'}).then(r=>satLabel(type,ly,r.ok?'ok':'err',`<span class="tilechip ${r.ok?'ok':'bad'}">default ${r.status}</span>`)).catch(()=>{});}
 function loadHimawari(type){activeHimType=type;
   const ly=himawariLayers.find(l=>type==='IR'?l.isIR:l.isVis)||himawariLayers.find(l=>type==='IR'?l.isVis:l.isIR)||himawariLayers[0];
   if(!ly||!radarMap){setSatFallback(type);return;}
   if(himawariLayer){radarMap.removeLayer(himawariLayer);himawariLayer=null;}
-  const time=ly.latest||new Date().toISOString().slice(0,10);
-  const url=`https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/${encodeURIComponent(ly.id)}/default/${encodeURIComponent(time)}/${encodeURIComponent(ly.tms)}/{z}/{y}/{x}.${ly.fmt}`;
-  himawariLayer=L.tileLayer(url,{maxZoom:8,opacity:.82,attribution:'NASA GIBS / JMA Himawari-9 (10 นาที)'});
+  const time=ly.latest||window._gibsToday||new Date().toISOString().slice(0,10);
+  const url=himUrl(ly,time);himawariLayer=L.tileLayer(url,{maxZoom:8,opacity:.82,attribution:'NASA GIBS / JMA Himawari-9 (10 นาที)'});
+  let errs=0;himawariLayer.on('tileerror',()=>{if(++errs>=3)tryDefaultTime(ly,type);});
   if(activeLayer==='himir'||activeLayer==='himvis')himawariLayer.addTo(radarMap);
-  $('#satTime').innerHTML=`🛰 Himawari-9 ${type==='IR'?'IR':'สี'} · ${utcToIct(time)} · ${ly.subdaily?'10 นาที':'รายวัน'}`;}
+  satLabel(type,ly,'','<span class="tilechip wait">โหลด…</span>');probeTile(url,ly,type);}
 function setSatFallback(type){if(himawariLayer&&radarMap.hasLayer(himawariLayer)){radarMap.removeLayer(himawariLayer);himawariLayer=null;}
   if(type==='VIS'&&radarMap){terraLayer.addTo(radarMap);$('#satTime').textContent='GIBS ไม่มี Himawari สี → MODIS Terra (fallback)';}
   else if(radarMap){irLayer.addTo(radarMap);$('#satTime').textContent='GIBS ไม่มี Himawari IR → RainViewer IR (fallback · ~10 นาที)';}}
 async function fetchHimawari(){api.sat.st='wait';pill('sat');
   try{const j=await fetch(PROXY.replace(/\/$/,'')+'/himawari/layers').then(r=>r.json());
-    himawariLayers=j.layers||[];api.sat={st:'ok',ms:0};
+        himawariLayers=j.layers||[];window._gibsToday=j.today_utc;window._gibsYest=j.yesterday_utc;api.sat={st:'ok',ms:0};
     if(himawariLayers.length){const nIR=himawariLayers.filter(l=>l.isIR).length,nV=himawariLayers.filter(l=>l.isVis).length;
       log('API','INFO',`GIBS Himawari-9: ${himawariLayers.length} layer (IR ${nIR}/สี ${nV})`);
       if(activeLayer==='himir'||activeLayer==='himvis')loadHimawari(activeHimType);

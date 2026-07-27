@@ -227,12 +227,16 @@ def _parse_gibs(xml):
         tmsm=re.search(r'<TileMatrixSet>(.*?)</TileMatrixSet>', blk, re.S); tms=tmsm.group(1).strip() if tmsm else 'GoogleMapsCompatible_Level9'
         fmt='png'; fm=re.search(r'<Format>(.*?)</Format>', blk, re.S)
         if fm: fmt='jpg' if 'jpeg' in fm.group(1) else 'png'
-        times=[]; dim=re.search(r'<Dimension>.*?<ows:Identifier>\s*Time\s*</ows:Identifier>(.*?)</Dimension>', blk, re.S)
-        if dim: times=re.findall(r'<Value>(.*?)</Value>', dim.group(1), re.S)
+        raw=[]; dim=re.search(r'<Dimension>.*?<ows:Identifier>\s*Time\s*</ows:Identifier>(.*?)</Dimension>', blk, re.S)
+        if dim: raw=[t.strip() for t in re.findall(r'<Value>(.*?)</Value>', dim.group(1), re.S)]
+        singles=[t for t in raw if t and '/' not in t and re.match(r'\d{4}-\d{2}-\d{2}', t)]   # timestamp เดี่ยวเท่านั้น
+        periods=[t for t in raw if '/' in t]                                                   # period expression (ห้ามเอาไปใส่ URL)
         isIR=bool(re.search(r'brightness|infrared|\bIR\b|band.?1[345]|band.?0?[789]', lid+title, re.I))
         isVis=bool(re.search(r'correctedreflectance|truecolor|visible|band.?0?[123]', lid+title, re.I))
         out.append({"id":lid,"title":title,"tms":tms,"fmt":fmt,"isIR":isIR,"isVis":isVis,
-                    "latest":times[-1] if times else None,"n_times":len(times),"subdaily":len(times)>2})
+                    "latest":singles[-1] if singles else None,
+                    "period":periods[-1] if periods else None,"n_singles":len(singles),
+                    "subdaily":len(singles)>2,"values_tail":raw[-3:]})
     return out
 @app.route("/himawari/layers")
 def himawari_layers():
@@ -243,6 +247,8 @@ def himawari_layers():
         rr=requests.get(GIBS_CAPS, headers={"User-Agent":"HTY-FloodCommand/5.0"}, timeout=30); rr.raise_for_status()
         layers=_parse_gibs(rr.text)
         payload={"source":"NASA GIBS WMTS epsg3857 (Himawari-9)","count":len(layers),"layers":layers,
+                 "today_utc":datetime.datetime.utcnow().strftime('%Y-%m-%d'),
+                 "yesterday_utc":(datetime.datetime.utcnow()-datetime.timedelta(days=1)).strftime('%Y-%m-%d'),
                  "note":"layer id/time/tms ดึงจาก capabilities จริง · count=0 → GIBS ไม่มี Himawari ใน projection นี้ (เว็บจะ fallback RainViewer IR)"}
         cset(ck,payload,3600); r=jsonify(payload); r.headers["X-Cache"]="MISS"; r.headers["Cache-Control"]="max-age=3600"; return r
     except Exception as e:
