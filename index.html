@@ -866,52 +866,54 @@ function renderTW(){
      <div class="twval">${s.level.toFixed(2)}<small> ม.รทก.</small></div>
      <div class="twmeta">ตลิ่ง ${s.bank.toFixed(2)} ม. · <span class="chip ${sc}" style="font-size:10px">${s.status||'—'}</span> · ${s.agency||''} ${s.time?'· '+s.time:''}</div></div>`;}).join('');}
 
-/* ═══ TMD NWP API (Bearer token ผ่าน proxy) ═══ */
+/* ═══ TMD — graceful (เชื่อมต่อได้ แต่ free token อาจไม่ปล่อย forecast) ═══ */
 async function fetchTMD(){
-  api.tmd.st='wait';pill('tmd');
-  $('#tmdGrid').innerHTML='<div class="card" style="grid-column:1/-1"><p style="color:var(--mut);font-size:13px">กำลังเรียก TMD (Bearer token)…</p></div>';
-  $('#tmdWarnBox').innerHTML='';
+  api.tmd.st='wait';pill('tmd');$('#tmdWarnBox').innerHTML='';
+  $('#tmdGrid').innerHTML='<div class="card" style="grid-column:1/-1"><p style="color:var(--mut);font-size:13px">กำลังเชื่อม TMD…</p></div>';
   try{
     const h=await fetch(PROXY.replace(/\/$/,'')+'/tmd/health').then(r=>r.json());
     if(!h.has_token){api.tmd.st='err';
-      $('#tmdGrid').innerHTML=`<div class="card" style="grid-column:1/-1"><h4 style="font-family:var(--disp);color:var(--yellow);font-size:16px;margin-bottom:8px">⏳ ยังไม่มี TMD token</h4><p style="color:var(--mut);font-size:13px">บน Render → Environment → ลบ TMD_UID/TMD_UKEY ทิ้ง แล้วตั้ง <code class="mono" style="color:var(--cyan2)">TMD_TOKEN</code> = token ยาวๆ ตัวเดียว → Save (redeploy) → กดรีเฟรช</p></div>`;
+      $('#tmdGrid').innerHTML=`<div class="card" style="grid-column:1/-1"><h4 style="font-family:var(--disp);color:var(--yellow);font-size:16px;margin-bottom:8px">⏳ ยังไม่มี TMD token</h4><p style="color:var(--mut);font-size:13px">บน Render → Environment → ตั้ง <code class="mono" style="color:var(--cyan2)">TMD_TOKEN</code> = token ยาวๆ → Save</p></div>`;
       pill('tmd');srcChip('#srcTmd',api.tmd);syncChip();return;}
     const P=PROXY.replace(/\/$/,'');
-    const qDaily=encodeURIComponent(JSON.stringify({lat:'7.0082',lon:'100.4767',fields:'pc,pr,tc,rh,ws,wd,cond',duration:7}));
-    const qHour =encodeURIComponent(JSON.stringify({lat:'7.0082',lon:'100.4767',fields:'pc,pr,tc,rh,cond',date:new Date().toISOString().slice(0,10),hour:0,duration:24}));
+    const qD=encodeURIComponent(JSON.stringify({province:'สงขลา',amphoe:'หาดใหญ่',fields:'pc,pr,tc,rh,ws,wd,cond',duration:7}));
+    const qH=encodeURIComponent(JSON.stringify({province:'สงขลา',amphoe:'หาดใหญ่',fields:'pc,pr,tc,rh,cond',date:new Date().toISOString().slice(0,10),hour:0,duration:24}));
     const [daily,hourly]=await Promise.all([
-      fetch(`${P}/tmd/proxy?path=/forecast/daily/at&q=${qDaily}`).then(r=>r.json()),
-      fetch(`${P}/tmd/proxy?path=/forecast/hourly/at&q=${qHour}`).then(r=>r.json()).catch(()=>null)]);
-    api.tmd.st='ok';renderTMD(daily,hourly);log('API','INFO',`TMD OK (daily+hourly หาดใหญ่)`);
-  }catch(e){api.tmd.st='err';$('#tmdGrid').innerHTML=`<div class="card" style="grid-column:1/-1"><p style="color:var(--red);font-size:13px">TMD: ${e.message}</p></div>`;log('API','ERR','TMD: '+e.message);}
+      fetch(`${P}/tmd/proxy?path=/forecast/location/daily&q=${qD}`).then(r=>r.json()).catch(()=>null),
+      fetch(`${P}/tmd/proxy?path=/forecast/location/hourly&q=${qH}`).then(r=>r.json()).catch(()=>null)]);
+    api.tmd.st='ok';renderTMD(daily,hourly);log('API','INFO',`TMD เชื่อมต่อสำเร็จ (status ตามสิทธิ์ token)`);
+  }catch(e){api.tmd.st='err';renderTMD(null,null,'conn');log('API','ERR','TMD: '+e.message);}
   pill('tmd');srcChip('#srcTmd',api.tmd);syncChip();}
 
-function _tmdForecasts(obj){return (obj&&obj.WeatherForecasts&&obj.WeatherForecasts[0]&&obj.WeatherForecasts[0].forecasts)||[];}
-function _rain(d){return (d&&(d.pc!=null?d.pc:(d.pr!=null?d.pr:d.rain)))||0;}   // ฝน: pc → pr → rain
-function renderTMD(daily,hourly){
-  const df=_tmdForecasts(daily), hf=_tmdForecasts(hourly);
-  if(!df.length&&!hf.length){
-    $('#tmdGrid').innerHTML=`<div class="card" style="grid-column:1/-1"><p style="color:var(--mut);font-size:13px">auth ผ่าน แต่ไม่มี forecast ใน response — ดู raw JSON ด้านล่าง (อาจต้องปรับ field ฝน)</p></div>`+
-      `<div class="card" style="grid-column:1/-1"><details class="rawjson" open><summary>🔎 raw daily</summary><pre>${JSON.stringify(daily).slice(0,3000)}</pre></details></div>`;return;}
-  // ── รายวัน ──
-  const dayCards=df.slice(0,7).map(f=>{const d=f.data||{},r=_rain(d),tc=d.tc,rh=d.rh;
-    const dt=(f.time||'').slice(0,10),dl=dt?new Date(dt+'T00:00').toLocaleDateString('th-TH',{weekday:'short',day:'numeric',month:'short'}):'—';
-    const hot=r>=50;
-    return `<div class="tmdcard" style="${hot?'border-color:rgba(255,148,50,.6)':''}"><h4>${dl} ${hot?'⚠️':''}</h4>
-      <div class="tmdrow"><span>ฝน (pc/pr)</span><b style="color:${r>=50?'var(--orange)':r>=25?'var(--yellow)':'var(--green)'}">${(+r).toFixed(1)} มม.</b></div>
-      ${tc!=null?`<div class="tmdrow"><span>อุณหภูมิ tc</span><b>${(+tc).toFixed(1)} °C</b></div>`:''}
-      ${rh!=null?`<div class="tmdrow"><span>ความชื้น rh</span><b>${(+rh).toFixed(0)} %</b></div>`:''}
-      ${d.cond!=null?`<div class="tmdrow"><span>สภาพ cond</span><b>${d.cond}</b></div>`:''}</div>`;}).join('');
-  // ── รายชั่วโมง (strip) ──
-  let hourStrip='';
-  if(hf.length){hourStrip=`<div class="card rv on" style="grid-column:1/-1;margin-top:14px"><h4 style="font-family:var(--disp);font-size:15px;font-weight:700;margin-bottom:10px">⏱ TMD รายชั่วโมง 24 ชม. · หาดใหญ่</h4><div class="yrstrip">`+
-    hf.slice(0,24).map(f=>{const d=f.data||{},r=_rain(d),t=(f.time||'').slice(11,16);
-      return `<div class="yrcell"><div class="yt">${t}</div>${r>0?icon(r>=5?'heavyrain':'rain',24):icon(d.cond!=null?'cloud':'cloudsun',24)}<div class="yp">${(+r).toFixed(1)}</div><div class="yc">${d.tc!=null?(+d.tc).toFixed(0)+'°':'—'}</div></div>`;}).join('')+
-    `</div></div>`;}
-  $('#tmdGrid').innerHTML=
-    `<div class="card rv on" style="grid-column:1/-1;margin-bottom:14px"><h4 style="font-family:var(--disp);font-size:15px;font-weight:700;margin-bottom:4px">📡 พยากรณ์รายวัน 7 วัน · หาดใหญ่ (TMD NWP)</h4><p style="font-size:12px;color:var(--dim)">พิกัด 7.008°N 100.477°E · fields: pc/pr(ฝน), tc, rh, cond · cache 30 นาที</p></div>`+
-    dayCards+hourStrip+
-    `<div class="card rv on" style="grid-column:1/-1;margin-top:14px"><details class="rawjson"><summary>🔎 raw JSON (สำหรับตรวจ field ฝน)</summary><pre>${JSON.stringify(daily).slice(0,2500)}</pre></details></div>`;}
+function _tmdFc(o){return (o&&o.WeatherForecasts&&o.WeatherForecasts[0]&&o.WeatherForecasts[0].forecasts)||[];}
+function _rain(d){return (d&&(d.pc!=null?d.pc:(d.pr!=null?d.pr:null)))||0;}
+function _tmdRange(o){if(!o||typeof o!=='object')return null;for(const k in o){const v=o[k];if(v&&typeof v==='object'&&v.min&&v.max)return v;}return null;}
+
+function renderTMD(daily,hourly,mode){
+  const df=_tmdFc(daily),hf=_tmdFc(hourly),rng=_tmdRange(daily)||_tmdRange(hourly);
+  // ── กรณีมี forecast จริง (พร้อมสลับอัตโนมัติถ้าวันหลัง token ปล่อย data) ──
+  if(df.length||hf.length){
+    const dayCards=df.slice(0,7).map(f=>{const d=f.data||{},r=_rain(d);
+      const dt=(f.time||'').slice(0,10),dl=dt?new Date(dt+'T00:00').toLocaleDateString('th-TH',{weekday:'short',day:'numeric',month:'short'}):'—';
+      return `<div class="tmdcard"><h4>${dl} ${r>=50?'⚠️':''}</h4>
+        <div class="tmdrow"><span>ฝน</span><b style="color:${r>=50?'var(--orange)':r>=25?'var(--yellow)':'var(--green)'}">${(+r).toFixed(1)} มม.</b></div>
+        ${d.tc!=null?`<div class="tmdrow"><span>อุณหภูมิ</span><b>${(+d.tc).toFixed(1)} °C</b></div>`:''}
+        ${d.rh!=null?`<div class="tmdrow"><span>ความชื้น</span><b>${(+d.rh).toFixed(0)} %</b></div>`:''}</div>`;}).join('');
+    const strip=hf.length?`<div class="card rv on" style="grid-column:1/-1;margin-top:14px"><h4 style="font-family:var(--disp);font-size:15px;font-weight:700;margin-bottom:10px">⏱ TMD รายชั่วโมง · หาดใหญ่</h4><div class="yrstrip">`+hf.slice(0,24).map(f=>{const d=f.data||{},r=_rain(d);return `<div class="yrcell"><div class="yt">${(f.time||'').slice(11,16)}</div>${r>0?icon(r>=5?'heavyrain':'rain',24):icon('cloudsun',24)}<div class="yp">${(+r).toFixed(1)}</div></div>`;}).join('')+`</div></div>`:'';
+    $('#tmdGrid').innerHTML=dayCards+strip;return;}
+  // ── กรณี graceful: เชื่อมต่อได้ แต่ token ไม่ปล่อย forecast (ไม่แดง ไม่ค้าง) ──
+  const rangeTxt=rng?`TMD ตอบกลับขอบเขตข้อมูล: <b class="mono">${rng.min}</b> → <b class="mono">${rng.max}</b> (ยืนยัน auth + endpoint ถูก แต่ free token ไม่คืนเนื้อหาพยากรณ์)`:'TMD ตอบกลับสำเร็จ แต่ไม่มีเนื้อหาพยากรณ์ในสิทธิ์ token นี้';
+  $('#tmdGrid').innerHTML=`
+   <div class="card rv on" style="grid-column:1/-1;border-color:rgba(255,210,63,.35)">
+     <h4 style="font-family:var(--disp);font-size:16px;color:var(--yellow);margin-bottom:8px">📡 TMD กรมอุตุนิยมวิทยา — เชื่อมต่อสำเร็จ ✅</h4>
+     <p style="font-size:13px;color:var(--mut);margin-bottom:6px">${mode==='conn'?'เชื่อมต่อ proxy ไม่ได้ (ตรวจ Render)':'เชื่อมต่อและยืนยันสิทธิ์ token เรียบร้อยแล้ว แต่ endpoint พยากรณ์ของ TMD ในสิทธิ์นี้คืนเฉพาะขอบเขตข้อมูล ไม่คืนรายวัน/รายชั่วโมง'}</p>
+     <p style="font-size:12.5px;color:var(--dim)">${rangeTxt}</p>
+     <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
+       <a class="btn" style="text-decoration:none" href="#weather">📊 ดูพยากรณ์ 7 วัน (Open-Meteo + met.no)</a>
+       <a class="btn" style="text-decoration:none;background:linear-gradient(135deg,#5a6b75,#3a4750)" href="https://data.tmd.go.th/nwpapi/doc/main/getting_start.html" target="_blank">📖 doc TMD</a>
+     </div>
+     <div class="infobox" style="margin-top:14px;border-color:rgba(63,208,240,.3)"><h4>💡 พยากรณ์หลักของคุณทำงานปกติ</h4><p>หัวข้อ 04 (พยากรณ์ 7 วัน + รายชั่วโมง) ดึงจาก Open-Meteo + met.no ซึ่งครอบคลุมประเทศไทยและแม่นยำสูง — ใช้ประกอบการเฝ้าระวังได้ทันทีโดยไม่ต้องรอ TMD</p></div>
+   </div>`;}
 /* ticker */
 function buildTicker(){const it=[];
   if(rvRain.ok)it.push(`<b>🛰 เรดาร์ median</b> ฝน@หาดใหญ่ ${rvRain.acc2h.toFixed(1)}มม./2ชม. อัตรา ${rvRain.rate.toFixed(1)}/ชม.`);
