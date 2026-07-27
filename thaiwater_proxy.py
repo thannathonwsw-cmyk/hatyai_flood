@@ -8,6 +8,7 @@ TMD:  ตั้ง env TMD_UID / TMD_UKEY (ขอที่ data.tmd.go.th) แ�
 """
 import os, re, json, time, threading, datetime, requests
 from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, Response
 
 app = Flask(__name__)
 PAGE = "https://songkhla.thaiwater.net/wl"
@@ -262,6 +263,27 @@ def himawari_caps():
                         "snippet":(t[max(0,i-200):i+600] if i>=0 else t[:600])})
     except Exception as e:
         return jsonify({"error":str(e)})
+# ═══════════════ GIBS tile proxy (แก้ CORS — server ดึงภาพส่งต่อ) ═══════════════
+@app.route("/gibs/tile")
+def gibs_tile():
+    layer=request.args.get("layer",""); tms=request.args.get("tms","GoogleMapsCompatible_Level9")
+    time=request.args.get("time",""); fmt=request.args.get("fmt","png")
+    z=request.args.get("z"); y=request.args.get("y"); x=request.args.get("x")
+    if not (layer and time and z and y and x): return jsonify({"error":"missing params"}),400
+    url=f"https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/{layer}/default/{time}/{tms}/{z}/{y}/{x}.{fmt}"
+    ck=f"gibstile:{layer}:{time}:{z}:{x}:{y}"; cached,hit=cget(ck)
+    try:
+        if hit: data,ct=cached
+        else:
+            r=requests.get(url,headers={"User-Agent":"HTY-FloodCommand/5.0"},timeout=15)
+            if r.status_code!=200: return Response(status=r.status_code)
+            data=r.content; ct=r.headers.get('Content-Type','image/png'); cset(ck,(data,ct),600)
+        resp=Response(data,mimetype=ct)
+        resp.headers['Access-Control-Allow-Origin']='*'      # ← ตัวแก้ CORS
+        resp.headers['Cache-Control']='public, max-age=600'
+        return resp
+    except Exception as e:
+        return jsonify({"error":str(e)}),502
 if __name__ == "__main__":
     print("="*54)
     print("  ThaiWater + TMD Proxy v2 — HTY FLOOD COMMAND")

@@ -995,26 +995,44 @@ const HTY={gfs:null,ecmwf:null,sat:null,own:null,conf:0,lastRun:0,
     const u=`https://api.open-meteo.com/v1/forecast?latitude=${HY.lat}&longitude=${HY.lon}&hourly=precipitation&models=${model}&forecast_days=1&past_days=0&timezone=Asia%2FBangkok`;
     const j=await cachedFetch(u,45*60000,'om_'+model);const H=j.hourly||{};const arr=(H.precipitation||[]).slice(0,24);
     return {model,sum24:arr.reduce((a,b)=>a+(b||0),0),max1:Math.max(0,...arr)};}catch(e){return null;}},
-  async satFeature(){ // อ่านพิกเซล Himawari IR เหนือ หาดใหญ่ + สะเดา (best-effort)
+    readPixels(url,lat,lon,z){return new Promise(res=>{
+    const n=2**z,tx=Math.floor((lon+180)/360*n),ty=Math.floor((1-Math.log(Math.tan(lat*Math.PI/180)+1/Math.cos(lat*Math.PI/180))/Math.PI)/2*n);
+    const u=url.replace('{z}',z).replace('{x}',tx).replace('{y}',ty);
+    const img=new Image();img.crossOrigin='anonymous';
+    img.onload=()=>{try{const cv=document.createElement('canvas');cv.width=cv.height=256;const cx=cv.getContext('2d',{willReadFrequently:true});cx.drawImage(img,0,0);
+      const xf=(lon+180)/360*n,yt=(1-Math.log(Math.tan(lat*Math.PI/180)+1/Math.cos(lat*Math.PI/180))/Math.PI)/2*n;
+      const px=Math.round((xf-Math.floor(xf))*256),py=Math.round((yt-Math.floor(yt))*256);
+      const d=cx.getImageData(Math.max(0,px-6),Math.max(0,py-6),13,13).data;const v=[];
+      for(let i=0;i<d.length;i+=4){if(d[i+3]>10)v.push((d[i]+d[i+1]+d[i+2])/3);}
+      if(!v.length)return res(null);const mean=v.reduce((a,b)=>a+b,0)/v.length;
+      const sd=Math.sqrt(v.reduce((a,b)=>a+(b-mean)**2,0)/v.length);
+      const bright=v.filter(x=>x>mean+0.6*sd).length/v.length;
+      res({mean:+mean.toFixed(1),texture:+sd.toFixed(1),cloudProxy:+bright.toFixed(2)});}catch(e){res(null);}};
+    img.onerror=()=>res(null);img.src=u;});},
+  async satFeature(){
+    const pts=[[HY.lat,HY.lon],[6.62,100.32]]; // หาดใหญ่ + สะเดา(ต้นน้ำ)
+    const avg=arr=>{const w=arr.filter(Boolean);if(!w.length)return null;
+      return {mean:+(w.reduce((a,b)=>a+b.mean,0)/w.length).toFixed(1),
+              texture:+(w.reduce((a,b)=>a+b.texture,0)/w.length).toFixed(1),
+              cloudProxy:+(w.reduce((a,b)=>a+b.cloudProxy,0)/w.length).toFixed(2)};};
+    const z=7;
+    // ชั้น 1: RainViewer IR — CORS ผ่านแน่ (host เดียวกับเรดาร์) + Mercator ตรงพิกัด
+    if(typeof satFrames!=='undefined'&&satFrames.length){const f=satFrames[satFrames.length-1];
+      const url=`${rvHost}${f.path}/256/{z}/{x}/{y}/0/0.png`;
+      const r=avg(await Promise.all(pts.map(p=>this.readPixels(url,p[0],p[1],z))));
+      if(r)return {...r,src:'RainViewer IR pixel (CORS ✓ ตรงพิกัด)'};}
+    // ชั้น 2: Himawari IR ผ่าน proxy (แก้ CORS เด็ดขาด)
     const ly=(typeof himawariLayers!=='undefined'&&himawariLayers.find(l=>l.isIR))||null;
-    const time=ly&&(ly.latest||window._gibsToday);if(!ly||!time)return null;
-    const readAt=(lat,lon)=>new Promise(res=>{const z=7,n=2**z;
-      const tx=Math.floor((lon+180)/360*n),ty=Math.floor((1-Math.log(Math.tan(lat*Math.PI/180)+1/Math.cos(lat*Math.PI/180))/Math.PI)/2*n);
-      const url=`https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/${encodeURIComponent(ly.id)}/default/${encodeURIComponent(time)}/${encodeURIComponent(ly.tms)}/${z}/${ty}/${tx}.${ly.fmt}`;
-      const img=new Image();img.crossOrigin='anonymous';
-      img.onload=()=>{try{const cv=document.createElement('canvas');cv.width=cv.height=256;const cx=cv.getContext('2d',{willReadFrequently:true});cx.drawImage(img,0,0);
-        const xf=(lon+180)/360*n,yt=(1-Math.log(Math.tan(lat*Math.PI/180)+1/Math.cos(lat*Math.PI/180))/Math.PI)/2*n;
-        const px=Math.round((xf-Math.floor(xf))*256),py=Math.round((yt-Math.floor(yt))*256);
-        const d=cx.getImageData(Math.max(0,px-6),Math.max(0,py-6),13,13).data;const v=[];
-        for(let i=0;i<d.length;i+=4){if(d[i+3]>10)v.push((d[i]+d[i+1]+d[i+2])/3);}
-        if(!v.length)return res(null);const mean=v.reduce((a,b)=>a+b,0)/v.length;
-        const sd=Math.sqrt(v.reduce((a,b)=>a+(b-mean)**2,0)/v.length);
-        const bright=v.filter(x=>x>mean+0.6*sd).length/v.length;
-        res({mean:+mean.toFixed(1),texture:+sd.toFixed(1),cloudProxy:+bright.toFixed(2)});}catch(e){res(null);}};
-      img.onerror=()=>res(null);img.src=url;});
-    const [a,b]=await Promise.all([readAt(HY.lat,HY.lon),readAt(6.62,100.32)]);
-    if(!a&&!b)return null;const w=(a?1:0)+(b?1:0);
-    return {cloudProxy:+(((a?a.cloudProxy:0)+(b?b.cloudProxy:0))/w).toFixed(2),src:'Himawari IR pixel'};},
+    const time=ly&&(ly.latest||window._gibsToday);
+    if(ly&&time){const url=`${PROXY.replace(/\/$/,'')}/gibs/tile?layer=${encodeURIComponent(ly.id)}&tms=${encodeURIComponent(ly.tms)}&time=${encodeURIComponent(time)}&fmt=${ly.fmt}&z={z}&x={x}&y={y}`;
+      const r=avg(await Promise.all(pts.map(p=>this.readPixels(url,p[0],p[1],z))));
+      if(r)return {...r,src:'Himawari IR via proxy (CORS ✓)'};}
+    // ชั้น 3: Himawari IR ตรง (บางที CORS ผ่าน)
+    if(ly&&time){const url=`https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/${encodeURIComponent(ly.id)}/default/${encodeURIComponent(time)}/${encodeURIComponent(ly.tms)}/{z}/{y}/{x}.${ly.fmt}`;
+      const r=avg(await Promise.all(pts.map(p=>this.readPixels(url,p[0],p[1],z))));
+      if(r)return {...r,src:'Himawari IR direct'};}
+    return null; // → engine ใช้เมฆ OM อัตโนมัติ
+  },
   async run(){
     const [g,e,s]=await Promise.allSettled([this.fetchModel('gfs_seamless'),this.fetchModel('ecmwf_ifs025'),this.satFeature()]);
     this.gfs=g.status==='fulfilled'?g.value:null;this.ecmwf=e.status==='fulfilled'?e.value:null;
