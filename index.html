@@ -1336,12 +1336,15 @@ $$('main section').forEach(s=>spy.observe(s));
 
 /* ═══ ลำดับแหล่งฝน 24 ชม. (hoist — วางท้ายไฟล์ได้) ═══ */
 function rain24Chain(){
-  const hty=(HTY&&HTY.own&&HTY.own.own24!=null)?HTY.own.own24:null;
-  const htyReady=!!(HTY&&HTY.own);
+  let hty=null, htyReady=false;
+  try{                                   // ← ห่อ TDZ: ถ้า HTY ยังไม่ init จะโยน → catch กลืน
+    htyReady = !!(HTY && HTY.own);
+    hty = (HTY && HTY.own && HTY.own.own24!=null) ? HTY.own.own24 : null;
+  }catch(e){ hty=null; htyReady=false; } // ← ช่วงโหลดแรก: HTY ยังไม่มี → ถือว่า "รอ"
   const rvOk=rvRain.ok, rvRate=rvOk?rvRain.rate:0, rvAcc2=rvOk?rvRain.acc2h:0;
   const om=(acc24!=null)?acc24:null;
-  const val24=hty!=null?hty:(om!=null?om:42);
-  const src24=hty!=null?'HTY':(om!=null?'OM':'sim');
+  const val24 = hty!=null ? hty : (om!=null ? om : 42);
+  const src24 = hty!=null ? 'HTY' : (om!=null ? 'OM' : 'sim');
   return {val24,src24,hty,htyReady,rvOk,rvRate,rvAcc2,om};}
 function renderRain24Chain(){
   const el=$('#rain24ChainBox'); if(!el)return; const ch=rain24Chain();
