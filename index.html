@@ -866,39 +866,52 @@ function renderTW(){
      <div class="twval">${s.level.toFixed(2)}<small> ม.รทก.</small></div>
      <div class="twmeta">ตลิ่ง ${s.bank.toFixed(2)} ม. · <span class="chip ${sc}" style="font-size:10px">${s.status||'—'}</span> · ${s.agency||''} ${s.time?'· '+s.time:''}</div></div>`;}).join('');}
 
-/* ═══ TMD (ผ่าน proxy) ═══ */
-async function fetchTMD(){api.tmd.st='wait';pill('tmd');$('#tmdGrid').innerHTML='<div class="card" style="grid-column:1/-1"><p style="color:var(--mut);font-size:13px">กำลังตรวจ TMD key…</p></div>';
-  const t0=performance.now();
+/* ═══ TMD NWP API (Bearer token ผ่าน proxy) ═══ */
+async function fetchTMD(){
+  api.tmd.st='wait';pill('tmd');
+  $('#tmdGrid').innerHTML='<div class="card" style="grid-column:1/-1"><p style="color:var(--mut);font-size:13px">กำลังเรียก TMD (Bearer token)…</p></div>';
+  $('#tmdWarnBox').innerHTML='';
   try{
     const h=await fetch(PROXY.replace(/\/$/,'')+'/tmd/health').then(r=>r.json());
-    if(!h.has_key){api.tmd={st:'err'};$('#tmdGrid').innerHTML=`<div class="card" style="grid-column:1/-1"><h4 style="font-family:var(--disp);color:var(--yellow);font-size:16px;margin-bottom:8px">⏳ ยังไม่มี TMD API key</h4><p style="color:var(--mut);font-size:13px">proxy เชื่อมต่อได้ แต่ยังไม่ตั้ง <code class="mono" style="color:var(--cyan2)">TMD_UID</code>/<code class="mono" style="color:var(--cyan2)">TMD_UKEY</code> บน Render → ดูวิธีขอ key ที่หัวข้อ 06 · เมื่อตั้งแล้ว redeploy proxy แล้วกดรีเฟรช</p></div>`;
+    if(!h.has_token){api.tmd.st='err';
+      $('#tmdGrid').innerHTML=`<div class="card" style="grid-column:1/-1"><h4 style="font-family:var(--disp);color:var(--yellow);font-size:16px;margin-bottom:8px">⏳ ยังไม่มี TMD token</h4><p style="color:var(--mut);font-size:13px">บน Render → Environment → ลบ TMD_UID/TMD_UKEY ทิ้ง แล้วตั้ง <code class="mono" style="color:var(--cyan2)">TMD_TOKEN</code> = token ยาวๆ ตัวเดียว → Save (redeploy) → กดรีเฟรช</p></div>`;
       pill('tmd');srcChip('#srcTmd',api.tmd);syncChip();return;}
-    // เรียกพยากรณ์รายวัน (defensive parse — schema TMD อาจต่าง)
-    const q=encodeURIComponent(JSON.stringify({}));
-    const data=await fetch(`${PROXY.replace(/\/$/,'')}/tmd/proxy?path=/forecasts/daily&q=${q}`).then(r=>r.json());
-    api.tmd={st:'ok',ms:Math.round(performance.now()-t0)};
-    renderTMD(data);log('API','INFO',`TMD OK (X-Cache ผ่าน proxy)`);
-  }catch(e){api.tmd={st:'err'};$('#tmdGrid').innerHTML=`<div class="card" style="grid-column:1/-1"><p style="color:var(--red);font-size:13px">TMD: ${e.message} — ตรวจ proxy/path</p></div>`;log('API','ERR','TMD: '+e.message);}
+    const P=PROXY.replace(/\/$/,'');
+    const qDaily=encodeURIComponent(JSON.stringify({lat:'7.0082',lon:'100.4767',fields:'pc,pr,tc,rh,ws,wd,cond',duration:7}));
+    const qHour =encodeURIComponent(JSON.stringify({lat:'7.0082',lon:'100.4767',fields:'pc,pr,tc,rh,cond',date:new Date().toISOString().slice(0,10),hour:0,duration:24}));
+    const [daily,hourly]=await Promise.all([
+      fetch(`${P}/tmd/proxy?path=/forecast/daily/at&q=${qDaily}`).then(r=>r.json()),
+      fetch(`${P}/tmd/proxy?path=/forecast/hourly/at&q=${qHour}`).then(r=>r.json()).catch(()=>null)]);
+    api.tmd.st='ok';renderTMD(daily,hourly);log('API','INFO',`TMD OK (daily+hourly หาดใหญ่)`);
+  }catch(e){api.tmd.st='err';$('#tmdGrid').innerHTML=`<div class="card" style="grid-column:1/-1"><p style="color:var(--red);font-size:13px">TMD: ${e.message}</p></div>`;log('API','ERR','TMD: '+e.message);}
   pill('tmd');srcChip('#srcTmd',api.tmd);syncChip();}
-function renderTMD(data){
-  // defensive: ลองดึง fields หลายรูปแบบ เพราะ schema TMD ต่างรุ่นต่างกัน
-  const txt=JSON.stringify(data);
-  const hasWarn=/warning|ประกาศ|เตือน/i.test(txt);
-  $('#tmdWarnBox').innerHTML=hasWarn?`<div class="tmdwarn"><h4>⚠️ พบประกาศ/คำเตือนในข้อมูล TMD</h4><p>ตรวจรายละเอียดใน raw JSON ด้านล่าง (schema ขึ้นกับรุ่น API)</p></div>`:'';
-  // พยายามหาสถานี/จังหวัด
-  const stations=data.stations||data.data||data.forecasts||data;
-  let cards='';
-  if(stations&&typeof stations==='object'){
-    const keys=Array.isArray(stations)?stations.map((_,i)=>i):Object.keys(stations).slice(0,6);
-    cards=keys.slice(0,6).map(k=>{const st=Array.isArray(stations)?stations[k]:stations[k];
-      const name=st?.info?.name||st?.station_name||st?.name||('สถานี '+k);
-      const daily=st?.data?.precipitation||st?.daily||st?.forecasts||[];
-      const rows=Array.isArray(daily)?daily.slice(0,5).map((d,i)=>{const val=Array.isArray(d)?d[1]:(d.value??d.precipitation??d.rain);const dt=Array.isArray(d)?String(d[0]).slice(0,10):(d.date||d.time||'');return `<div class="tmdrow"><span>${dt||('วันที่ '+(i+1))}</span><b>${val!=null?val+' มม.':'—'}</b></div>`;}).join(''):'<div class="tmdrow"><span>ไม่มีข้อมูลรายวันใน schema นี้</span></div>';
-      return `<div class="tmdcard"><h4>📡 ${name}</h4>${rows}</div>`;}).join('');
-  }
-  if(!cards)cards='<div class="card" style="grid-column:1/-1"><p style="color:var(--mut);font-size:13px">เชื่อมต่อ TMD สำเร็จ แต่ schema ต่างจากที่คาด — ดู raw JSON ด้านล่างเพื่อปรับ parse</p></div>';
-  $('#tmdGrid').innerHTML=cards+`<div class="card" style="grid-column:1/-1"><details class="rawjson"><summary>🔎 ดู raw JSON จาก TMD (สำหรับปรับ parse)</summary><pre>${txt.slice(0,4000)}</pre></details></div>`;}
 
+function _tmdForecasts(obj){return (obj&&obj.WeatherForecasts&&obj.WeatherForecasts[0]&&obj.WeatherForecasts[0].forecasts)||[];}
+function _rain(d){return (d&&(d.pc!=null?d.pc:(d.pr!=null?d.pr:d.rain)))||0;}   // ฝน: pc → pr → rain
+function renderTMD(daily,hourly){
+  const df=_tmdForecasts(daily), hf=_tmdForecasts(hourly);
+  if(!df.length&&!hf.length){
+    $('#tmdGrid').innerHTML=`<div class="card" style="grid-column:1/-1"><p style="color:var(--mut);font-size:13px">auth ผ่าน แต่ไม่มี forecast ใน response — ดู raw JSON ด้านล่าง (อาจต้องปรับ field ฝน)</p></div>`+
+      `<div class="card" style="grid-column:1/-1"><details class="rawjson" open><summary>🔎 raw daily</summary><pre>${JSON.stringify(daily).slice(0,3000)}</pre></details></div>`;return;}
+  // ── รายวัน ──
+  const dayCards=df.slice(0,7).map(f=>{const d=f.data||{},r=_rain(d),tc=d.tc,rh=d.rh;
+    const dt=(f.time||'').slice(0,10),dl=dt?new Date(dt+'T00:00').toLocaleDateString('th-TH',{weekday:'short',day:'numeric',month:'short'}):'—';
+    const hot=r>=50;
+    return `<div class="tmdcard" style="${hot?'border-color:rgba(255,148,50,.6)':''}"><h4>${dl} ${hot?'⚠️':''}</h4>
+      <div class="tmdrow"><span>ฝน (pc/pr)</span><b style="color:${r>=50?'var(--orange)':r>=25?'var(--yellow)':'var(--green)'}">${(+r).toFixed(1)} มม.</b></div>
+      ${tc!=null?`<div class="tmdrow"><span>อุณหภูมิ tc</span><b>${(+tc).toFixed(1)} °C</b></div>`:''}
+      ${rh!=null?`<div class="tmdrow"><span>ความชื้น rh</span><b>${(+rh).toFixed(0)} %</b></div>`:''}
+      ${d.cond!=null?`<div class="tmdrow"><span>สภาพ cond</span><b>${d.cond}</b></div>`:''}</div>`;}).join('');
+  // ── รายชั่วโมง (strip) ──
+  let hourStrip='';
+  if(hf.length){hourStrip=`<div class="card rv on" style="grid-column:1/-1;margin-top:14px"><h4 style="font-family:var(--disp);font-size:15px;font-weight:700;margin-bottom:10px">⏱ TMD รายชั่วโมง 24 ชม. · หาดใหญ่</h4><div class="yrstrip">`+
+    hf.slice(0,24).map(f=>{const d=f.data||{},r=_rain(d),t=(f.time||'').slice(11,16);
+      return `<div class="yrcell"><div class="yt">${t}</div>${r>0?icon(r>=5?'heavyrain':'rain',24):icon(d.cond!=null?'cloud':'cloudsun',24)}<div class="yp">${(+r).toFixed(1)}</div><div class="yc">${d.tc!=null?(+d.tc).toFixed(0)+'°':'—'}</div></div>`;}).join('')+
+    `</div></div>`;}
+  $('#tmdGrid').innerHTML=
+    `<div class="card rv on" style="grid-column:1/-1;margin-bottom:14px"><h4 style="font-family:var(--disp);font-size:15px;font-weight:700;margin-bottom:4px">📡 พยากรณ์รายวัน 7 วัน · หาดใหญ่ (TMD NWP)</h4><p style="font-size:12px;color:var(--dim)">พิกัด 7.008°N 100.477°E · fields: pc/pr(ฝน), tc, rh, cond · cache 30 นาที</p></div>`+
+    dayCards+hourStrip+
+    `<div class="card rv on" style="grid-column:1/-1;margin-top:14px"><details class="rawjson"><summary>🔎 raw JSON (สำหรับตรวจ field ฝน)</summary><pre>${JSON.stringify(daily).slice(0,2500)}</pre></details></div>`;}
 /* ticker */
 function buildTicker(){const it=[];
   if(rvRain.ok)it.push(`<b>🛰 เรดาร์ median</b> ฝน@หาดใหญ่ ${rvRain.acc2h.toFixed(1)}มม./2ชม. อัตรา ${rvRain.rate.toFixed(1)}/ชม.`);

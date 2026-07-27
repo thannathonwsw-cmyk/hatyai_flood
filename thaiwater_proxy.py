@@ -99,37 +99,66 @@ def stations():
     resp = jsonify(payload); resp.headers["X-Cache"]="MISS"; resp.headers["Cache-Control"]="max-age=300"; return resp
 
 # ═══════════════ TMD forwarder (ต้องเรียกผ่าน proxy เพราะ TMD ไม่เปิด CORS) ═══════════════
+# ── TMD config (อ่าน token ตัวเดียวจาก env) ──
+TMD_TOKEN = os.environ.get("TMD_TOKEN", "")
+TMD_BASE  = "https://data.tmd.go.th/nwpapi/v1"
+HY_LAT, HY_LON = "7.0082", "100.4767"
+TMD_FIELDS = "pc,pr,tc,rh,ws,wd,cond,slp"   # ลองทุกตัวที่เกี่ยวข้อง (ฝน = pc หรือ pr)
+
+# ═══════════════ TMD NWP API (OAuth2 Bearer) ═══════════════
 @app.route("/tmd/health")
 def tmd_health():
-    return jsonify({"has_key":bool(TMD_UID and TMD_UKEY),"uid_set":bool(TMD_UID),"ukey_set":bool(TMD_UKEY)})
+    return jsonify({"has_token":bool(TMD_TOKEN),"token_len":len(TMD_TOKEN)})
+
+def _tmd_get(path, params):
+    h = {"accept":"application/json",
+         "authorization":f"Bearer {TMD_TOKEN}",
+         "User-Agent":"HTY-FloodCommand/5.0 (proxy)"}
+    return requests.get(TMD_BASE+path, params=params, headers=h, timeout=20)
 
 @app.route("/tmd/proxy")
 def tmd_proxy():
-    """เรียก: /tmd/proxy?path=/forecasts/daily&q={"station":"..."}  (q = JSON ของ query params)"""
-    if not (TMD_UID and TMD_UKEY):
-        return jsonify({"error":"ยังไม่ได้ตั้ง TMD_UID/TMD_UKEY บนเซิร์ฟเวอร์","has_key":False}), 503
-    path = request.args.get("path", "/forecasts/daily")
-    q = request.args.get("q", "{}")
-    ck = f"tmd:{path}:{q}"; cached, hit = cget(ck)
+    if not TMD_TOKEN:
+        return jsonify({"error":"ยังไม่ได้ตั้ง TMD_TOKEN","has_token":False}),503
+    path = request.args.get("path","/forecast/daily/at")
+    q    = request.args.get("q","{}")
+    ck = f"tmd:{path}:{q}"; cached,hit = cget(ck)
     if hit:
-        resp = jsonify(cached); resp.headers["X-Cache"]="HIT"; resp.headers["Cache-Control"]="max-age=600"; return resp
+        r=jsonify(cached); r.headers["X-Cache"]="HIT"; r.headers["Cache-Control"]="max-age=600"; return r
     try: params = json.loads(q)
     except Exception: params = {}
-    headers = {"uid":TMD_UID,"ukey":TMD_UKEY,"Accept":"application/json","User-Agent":"HTY-FloodCommand/5.0"}
-    last = None
-    for base in TMD_BASES:  # ลอง NWP API ก่อน แล้ว fallback legacy
+    try:
+        rr = _tmd_get(path, params)
+        if rr.status_code != 200:
+            return jsonify({"error":f"HTTP {rr.status_code}","body":rr.text[:300]}),502
+        data = rr.json(); cset(ck, data, 1800)   # cache 30 นาที (ประหยัด datapoint)
+        resp = jsonify(data); resp.headers["X-Cache"]="MISS"; resp.headers["Cache-Control"]="max-age=1800"
+        for hk in ["X-RateLimit-Remaining","X-Datapoint-Remaining"]:   # ส่ง quota กลับไปให้เว็บดู
+            if hk in rr.headers: resp.headers[hk] = rr.headers[hk]
+        return resp
+    except Exception as e:
+        return jsonify({"error":str(e)}),502
+
+@app.route("/tmd/test")
+def tmd_test():
+    """วินิจฉัย: เช็ก auth + ดูว่า field ฝนตัวไหน (pc/pr) TMD คืนค่ามาจริง"""
+    if not TMD_TOKEN:
+        return jsonify({"has_token":False,"hint":"ตั้ง TMD_TOKEN ตัวเดียวพอ (token ยาวๆ) — ไม่ต้องมี uid"}),503
+    out = {}
+    def grab(path, params):
         try:
-            r = requests.get(base+path, headers=headers, params=params, timeout=20)
-            if r.status_code == 200:
-                data = r.json()
-                ttl = 1800 if "forecast" in path else (600 if "warning" in path else 900)
-                cset(ck, data, ttl)
-                resp = jsonify(data); resp.headers["X-Cache"]="MISS"; resp.headers["Cache-Control"]=f"max-age={ttl}"
-                return resp
-            last = f"HTTP {r.status_code} @ {base}"
+            rr = _tmd_get(path, params)
+            isj = rr.headers.get('content-type','').startswith('application/json')
+            return {"status":rr.status_code,
+                    "datapoint_left":rr.headers.get("X-Datapoint-Remaining"),
+                    "data":(rr.json() if isj else rr.text[:400])}
         except Exception as e:
-            last = f"{e} @ {base}"
-    return jsonify({"error":str(last),"hint":"ตรวจ uid/ukey หรือ path ให้ตรง doc ของ TMD"}), 502
+            return {"status":"ERR","data":str(e)}
+    out["datarange"] = grab("/forecast/daily/datarange", {})                 # เบาสุด ใช้เช็ก auth
+    out["daily_at"]  = grab("/forecast/daily/at",  {"lat":HY_LAT,"lon":HY_LON,"fields":TMD_FIELDS,"duration":7})
+    today = datetime.date.today().isoformat()
+    out["hourly_at"] = grab("/forecast/hourly/at", {"lat":HY_LAT,"lon":HY_LON,"fields":TMD_FIELDS,"date":today,"hour":0,"duration":24})
+    return jsonify(out)
 
 # ═══════════════ debug / stats ═══════════════
 @app.route("/cache/stats")
