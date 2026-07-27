@@ -141,62 +141,61 @@ def tmd_proxy():
 
 @app.route("/tmd/test")
 def tmd_test():
-    """PARAM MATRIX: ลองหลายชุด param → หาชุดที่ทำให้ daily_data/hourly_data เป็น list (มี forecast จริง)"""
+    """รอบสุดท้าย: ลอง POST + อ่าน spec จาก server + province code (ตัดทุกความเป็นไปได้ที่เหลือ)"""
     if not TMD_TOKEN:
         return jsonify({"has_token":False}),503
-    h={"accept":"application/json","authorization":f"Bearer {TMD_TOKEN}","User-Agent":"HTY-FloodCommand/5.0"}
-    today=datetime.date.today().isoformat()
-    PROV,AMP="สงขลา","หาดใหญ่"
-
+    H=lambda extra=None:{"accept":"application/json","authorization":f"Bearer {TMD_TOKEN}",
+                         "User-Agent":"HTY-FloodCommand/5.0",**(extra or {})}
+    today=datetime.date.today().isoformat(); mid="2026-07-30"
     def shape(body):
-        """บอก 'รูปร่าง' ของ response: list=มีforecastจริง / range_only=ให้แค่min-max / dict=อื่น"""
-        if not isinstance(body,dict):
-            return {"type":type(body).__name__,"raw":str(body)[:200]}
+        if not isinstance(body,dict): return {"type":type(body).__name__,"raw":str(body)[:200]}
+        found=None
+        def walk(o,p,d):
+            nonlocal found
+            if found or d>6: return
+            if isinstance(o,dict):
+                for k,v in o.items(): walk(v,p+"/"+str(k),d+1)
+            elif isinstance(o,list) and o and isinstance(o[0],dict):
+                ks=set(o[0].keys())
+                if (ks & {"time","date","data","forecasts","forecast","tc","pc","pr","rh"}) or ("data" in o[0]):
+                    found={"path":p,"len":len(o),"first_keys":list(o[0].keys()),"first":o[0]}
+        walk(body,"",0)
+        if found: return {"type":"LIST ✅",**found}
         for k,v in body.items():
-            if isinstance(v,list):
-                return {"type":"LIST ✅","key":k,"len":len(v),
-                        "first_keys":list(v[0].keys()) if v and isinstance(v[0],dict) else None,
-                        "first":v[0] if v else None}
-            if isinstance(v,dict):
-                if v and set(v.keys())<={"min","max"}:
-                    return {"type":"range_only","key":k,"min":v.get("min"),"max":v.get("max")}
-                for kk,vv in v.items():
-                    if isinstance(vv,list) and vv and isinstance(vv[0],dict):
-                        return {"type":"LIST ✅","key":f"{k}.{kk}","len":len(vv),
-                                "first_keys":list(vv[0].keys()),"first":vv[0]}
-        return {"type":"dict","keys":list(body.keys()),"raw":json.dumps(body,ensure_ascii=False)[:250]}
-
-    def call(path,params):
+            if isinstance(v,dict) and set(v.keys())<={"min","max"}:
+                return {"type":"range_only","key":k,"min":v.get("min"),"max":v.get("max")}
+        return {"type":"dict","keys":list(body.keys()),"raw":json.dumps(body,ensure_ascii=False)[:300]}
+    def get(path,params):
         try:
-            r=requests.get(TMD_BASE+path,params=params,headers=h,timeout=12)
-            try: body=r.json()
-            except Exception: body=r.text[:250]
-            return {"params":params,"status":r.status_code,**shape(body)}
-        except Exception as e:
-            return {"params":params,"status":"ERR","error":str(e)[:80]}
-
-    daily=[
-      call("/forecast/location/daily",{"province":PROV,"amphoe":AMP,"fields":TMD_FIELDS,"duration":7}),
-      call("/forecast/location/daily",{"province":PROV,"amphoe":AMP,"duration":7}),
-      call("/forecast/location/daily",{"province":PROV,"fields":TMD_FIELDS,"duration":7}),
-      call("/forecast/location/daily",{"province":PROV,"amphoe":AMP,"fields":TMD_FIELDS,"date":today}),
-      call("/forecast/location/daily",{"province":PROV,"amphoe":AMP,"fields":"tc","duration":7}),
-      call("/forecast/location/daily",{"lat":HY_LAT,"lon":HY_LON,"fields":TMD_FIELDS,"duration":7}),
-      call("/forecast/location/daily",{"lat":HY_LAT,"lon":HY_LON,"duration":7}),
-    ]
-    hourly=[
-      call("/forecast/location/hourly",{"province":PROV,"amphoe":AMP,"fields":TMD_FIELDS,"date":today,"hour":0,"duration":24}),
-      call("/forecast/location/hourly",{"province":PROV,"amphoe":AMP,"date":today,"hour":0,"duration":24}),
-      call("/forecast/location/hourly",{"province":PROV,"amphoe":AMP,"fields":TMD_FIELDS,"date":today,"duration":24}),
-      call("/forecast/location/hourly",{"lat":HY_LAT,"lon":HY_LON,"fields":TMD_FIELDS,"date":today,"hour":0,"duration":24}),
-      call("/forecast/location/hourly",{"province":PROV,"amphoe":AMP,"fields":"tc","date":today,"hour":0,"duration":24}),
-    ]
-    win_d=next((x for x in daily  if x.get("type","").startswith("LIST")),None)
-    win_h=next((x for x in hourly if x.get("type","").startswith("LIST")),None)
-    return jsonify({
-      "daily":daily,"hourly":hourly,
-      "WINNER_daily":win_d,"WINNER_hourly":win_h,
-      "read_me":"หาช่องที่ type ขึ้นต้น 'LIST ✅' = param ชุดนั้นถูก | .first = forecast ชิ้นจริง (ผมใช้เขียนเว็บรอบหน้า) | ถ้าทุกช่อง range_only = endpoint นี้ให้แค่ปฏิทิน ต้องเปลี่ยนกลยุทธ์"})
+            r=requests.get(TMD_BASE+path,params=params,headers=H(),timeout=12)
+            try:b=r.json()
+            except:b=r.text[:300]
+            return {"m":"GET","path":path,"status":r.status_code,**shape(b)}
+        except Exception as e: return {"m":"GET","path":path,"status":"ERR","error":str(e)[:60]}
+    def post(path,body):
+        try:
+            r=requests.post(TMD_BASE+path,json=body,headers=H({"content-type":"application/json"}),timeout=12)
+            try:b=r.json()
+            except:b=r.text[:300]
+            return {"m":"POST","path":path,"status":r.status_code,**shape(b)}
+        except Exception as e: return {"m":"POST","path":path,"status":"ERR","error":str(e)[:60]}
+    results=[]
+    for path in ["/forecast/location/daily","/forecast/location/hourly","/forecast/daily","/forecast/hourly"]:
+        results.append(post(path,{"lat":float(HY_LAT),"lon":float(HY_LON),"fields":TMD_FIELDS,"date":today,"hour":0,"duration":7}))
+        results.append(post(path,{"province":"สงขลา","amphoe":"หาดใหญ่","fields":TMD_FIELDS,"date":today,"duration":7}))
+    results.append(get("/forecast/location/daily",{"province":"90","amphoe":"หาดใหญ่","fields":TMD_FIELDS,"duration":7}))
+    results.append(get("/forecast/location/daily",{"lat":HY_LAT,"lon":HY_LON,"fields":TMD_FIELDS,"date":mid,"duration":7}))
+    spec={}
+    for p in ["/","/forecast","/forecast/location","/openapi.json","/swagger.json","/forecast/daily/datarange"]:
+        try:
+            r=requests.get(TMD_BASE+p,headers=H(),timeout=8); ct=r.headers.get('content-type','')
+            try:b=r.json()
+            except:b=r.text[:200]
+            spec[p]={"status":r.status_code,"ct":ct[:30],"body":b}
+        except Exception as e: spec[p]={"status":"ERR","error":str(e)[:50]}
+    winners=[r for r in results if r.get("type","").startswith("LIST")]
+    return jsonify({"winners":winners,"results":results,"spec_discovery":spec,
+      "read_me":"winners ไม่ว่าง = เจอ forecast จริง (ดู .first) | results[].m=POST = ลอง method POST | spec_discovery = endpoint/doc ที่ server มีจริง"})
 
 # ═══════════════ debug / stats ═══════════════
 @app.route("/cache/stats")
