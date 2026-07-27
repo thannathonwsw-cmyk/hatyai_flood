@@ -141,33 +141,41 @@ def tmd_proxy():
 
 @app.route("/tmd/test")
 def tmd_test():
-    """dump ข้อมูลจริง: ลอง province(ไทย) vs lat/lon + โชว์ forecast ชิ้นแรก"""
+    """เปิดฝาเลนส์: dump top_keys + raw + ค้นหา array ที่น่าจะเป็น forecast"""
     if not TMD_TOKEN:
         return jsonify({"has_token":False}),503
     h={"accept":"application/json","authorization":f"Bearer {TMD_TOKEN}","User-Agent":"HTY-FloodCommand/5.0"}
     today=datetime.date.today().isoformat()
+    def inspect(body):
+        out={"top_keys":(list(body.keys()) if isinstance(body,dict) else type(body).__name__)}
+        found=[]
+        def walk(o,path,d):
+            if d>6 or len(found)>=3: return
+            if isinstance(o,dict):
+                for k,v in o.items(): walk(v,path+"/"+str(k),d+1)
+            elif isinstance(o,list):
+                if o and isinstance(o[0],dict):
+                    ks=set(o[0].keys())
+                    if ks & {"time","forecasts","forecast","data","date","tc","pc","pr","rh","ws"}:
+                        found.append({"path":path,"len":len(o),"item_keys":list(o[0].keys()),"first":o[0]})
+                for v in o[:1]: walk(v,path+"[0]",d+1)
+        walk(body,"",0)
+        out["candidate_arrays"]=found
+        try: out["raw"]=json.dumps(body,ensure_ascii=False)[:1500]
+        except Exception: out["raw"]=str(body)[:1500]
+        return out
     def call(path,params):
         try:
-            r=requests.get(TMD_BASE+path,params=params,headers=h,timeout=15); body=None
+            r=requests.get(TMD_BASE+path,params=params,headers=h,timeout=15)
             try: body=r.json()
             except Exception: body=r.text[:500]
-            fc=0; first=None; keys=None
-            if isinstance(body,dict):
-                wf=body.get("WeatherForecasts") or body.get("weatherForecasts") or body.get("data") or []
-                if isinstance(wf,list) and wf and isinstance(wf[0],dict):
-                    fs=wf[0].get("forecasts",[]) or wf[0].get("forecast",[]) or []
-                    fc=len(fs); first=fs[0] if fs else None
-                    keys=list(wf[0].keys())
-            return {"status":r.status_code,"forecast_count":fc,"location_keys":keys,"first_forecast":first,
-                    "body_preview":(body if not isinstance(body,(dict,)) else None)}
+            return {"status":r.status_code,**inspect(body)}
         except Exception as e:
             return {"status":"ERR","error":str(e)}
     return jsonify({
-      "daily_prov":   call("/forecast/location/daily",  {"province":"สงขลา","amphoe":"หาดใหญ่","fields":TMD_FIELDS,"duration":7}),
-      "daily_latlon": call("/forecast/location/daily",  {"lat":HY_LAT,"lon":HY_LON,"fields":TMD_FIELDS,"duration":7}),
-      "hourly_prov":  call("/forecast/location/hourly", {"province":"สงขลา","amphoe":"หาดใหญ่","fields":TMD_FIELDS,"date":today,"hour":0,"duration":24}),
-      "hourly_latlon":call("/forecast/location/hourly", {"lat":HY_LAT,"lon":HY_LON,"fields":TMD_FIELDS,"date":today,"hour":0,"duration":24}),
-      "read_me":"ดูช่องที่ forecast_count > 0 = param ที่ถูก | first_forecast = โครงสร้างจริง (ผมใช้เขียนเว็บรอบหน้า)"})
+      "daily_prov":  call("/forecast/location/daily",  {"province":"สงขลา","amphoe":"หาดใหญ่","fields":TMD_FIELDS,"duration":7}),
+      "hourly_prov": call("/forecast/location/hourly", {"province":"สงขลา","amphoe":"หาดใหญ่","fields":TMD_FIELDS,"date":today,"hour":0,"duration":24}),
+      "read_me":"top_keys = key ระดับบนสุด | candidate_arrays.first = forecast ชิ้นจริง (ถ้าเจอ) | raw = ข้อมูลดิบตัดสั้น"})
 
 # ═══════════════ debug / stats ═══════════════
 @app.route("/cache/stats")
