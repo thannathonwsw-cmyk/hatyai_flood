@@ -1172,10 +1172,10 @@ const HTY={gfs:null,ecmwf:null,sat:null,own:null,conf:0,lastRun:0,
     requestAnimationFrame(()=>requestAnimationFrame(()=>{
       const fg=$('#htyGfg');if(fg)fg.style.strokeDashoffset=off.toFixed(1);
       el.querySelectorAll('[data-w]').forEach(b=>b.style.width=b.dataset.w+'%');
-    }));},
-
-
-   function buildTicker(){const it=[];
+         }));},
+    };
+    
+    function buildTicker(){const it=[];
   if(rvRain.ok)it.push(`<b>🛰 เรดาร์ median</b> ฝน@หาดใหญ่ ${rvRain.acc2h.toFixed(1)}มม./2ชม. อัตรา ${rvRain.rate.toFixed(1)}/ชม.`);
   if(acc24!=null)it.push(`<b>OM</b> ฝน24ชม ${acc24.toFixed(1)}มม. · 7วัน ${acc7d.toFixed(1)}มม.`);
   if(TW.ok&&TW.utaphao)it.push(`<b>ThaiWater</b> คลองอู่ตะเภา(คูเต่า) ${TW.utaphao.level.toFixed(2)}ม. ตลิ่ง ${TW.utaphao.bank}ม.`);
