@@ -406,6 +406,31 @@ footer ul{list-style:none}footer li{padding:3px 0}
 .hty-rline b{color:var(--ink)}
 .hty-rline.warn{color:var(--yellow)}
 @media(max-width:640px){.hty-top{grid-template-columns:1fr}.hty-srcs{grid-template-columns:1fr 1fr}}
+/* ═══ ลำดับแหล่งฝน 24 ชม. (ปัจจัย ①) — HTY นำ / RV เสริม / OM ฐาน ═══ */
+.r24chain{display:flex;align-items:stretch;gap:0;margin:12px 0 4px;padding:14px 12px 12px;border-radius:12px;background:linear-gradient(120deg,rgba(63,208,240,.06),rgba(159,140,255,.04));border:1px solid rgba(63,208,240,.18);position:relative;overflow:hidden}
+.r24chain::before{content:'ลำดับแหล่งปัจจัย ① ฝนสะสม';position:absolute;top:5px;left:12px;font-family:var(--mono);font-size:9px;letter-spacing:1.5px;color:var(--dim);text-transform:uppercase}
+.r24node{flex:1;min-width:0;padding:18px 10px 8px;border-radius:9px;background:rgba(8,32,44,.55);border:1px solid var(--line);margin:0 2px;transition:transform .25s,border-color .25s,box-shadow .25s;position:relative;animation:r24in .5s ease both}
+.r24node:nth-child(1){animation-delay:.05s}.r24node:nth-child(3){animation-delay:.15s}.r24node:nth-child(5){animation-delay:.25s}
+@keyframes r24in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.r24node:hover{transform:translateY(-3px);border-color:var(--cyan);box-shadow:0 8px 20px rgba(0,0,0,.35)}
+.r24node.lead{border-color:rgba(63,208,240,.5);box-shadow:0 0 0 1px rgba(63,208,240,.25),0 0 16px rgba(63,208,240,.12)}
+.r24node.lead::after{content:'';position:absolute;inset:-1px;border-radius:9px;border:1px solid var(--cyan);opacity:.5;animation:r24ring 2s ease-out infinite;pointer-events:none}
+@keyframes r24ring{0%{transform:scale(1);opacity:.5}100%{transform:scale(1.05);opacity:0}}
+.r24node.dim{opacity:.5}
+.r24h{display:flex;align-items:center;gap:5px;margin-bottom:3px}
+.r24ic{font-size:13px}.r24nm{font-family:var(--disp);font-weight:600;font-size:12px;color:var(--mut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.r24tag{margin-left:auto;font-family:var(--mono);font-size:8.5px;color:#04141c;background:var(--cyan);border-radius:4px;padding:1px 5px;font-weight:700}
+.r24v{font-family:var(--mono);font-weight:700;font-size:19px;line-height:1.1}
+.r24v small{font-size:10px;color:var(--mut);font-weight:400}
+.r24bar{height:4px;background:#0a2733;border-radius:2px;overflow:hidden;margin:6px 0 5px}
+.r24bar i{display:block;height:100%;width:0;border-radius:2px;transition:width 1.1s cubic-bezier(.2,.8,.2,1)}
+.r24st{display:flex;align-items:center;gap:5px;font-size:10px;color:var(--dim);font-family:var(--mono)}
+.r24dot{width:6px;height:6px;border-radius:50%}
+.r24node.lead .r24st .r24dot{animation:blink 1.2s infinite}
+.r24arrow{display:flex;align-items:center;padding:0 1px;flex:none}
+.r24flow{stroke-dasharray:3 3;animation:r24dash 1s linear infinite}
+@keyframes r24dash{to{stroke-dashoffset:-6}}
+@media(max-width:640px){.r24chain{flex-direction:column}.r24arrow{transform:rotate(90deg);align-self:center;padding:2px 0}}
 @media(max-width:640px){.tiles{grid-template-columns:1fr 1fr}.fcstrip,.camgrid,.raingrid,.srcgrid,.hcards,.twgrid,.tmdgrid{grid-template-columns:1fr}.clockbox{margin-left:0}}
 </style>
 </head>
@@ -448,6 +473,7 @@ footer ul{list-style:none}footer li{padding:3px 0}
       <span id="gLevel" class="chip green">กำลังคำนวณ…</span>
     </div>
     <div class="gmeta"><span>คำนวณ <b id="gTime" class="mono">--:--</b></span><span>7.008°N 100.477°E</span></div>
+        <div class="r24chain" id="rain24ChainBox"></div>
     <div class="factors" id="factorsBox"></div>
     <div class="reason"><h4>🔍 เหตุผลของคะแนน</h4><div id="reasonLines"><span class="sk" style="min-width:260px"></span></div></div>
     <div class="trendcard"><h4>📈 แนวโน้มความเสี่ยงย้อนหลัง 5 ชั่วโมง</h4><div id="trendBox"><span class="sk" style="width:100%;height:50px"></span></div></div>
@@ -732,7 +758,9 @@ function renderTide(){
 
 /* ═══ 5-FACTOR RISK ═══ */
 function subScores(){
-  const r24=acc24!=null?clamp(acc24<=50?acc24/50*25:acc24<=100?25+(acc24-50)/50*30:acc24<=150?55+(acc24-100)/50*20:acc24<=200?75+(acc24-150)/50*15:90+clamp((acc24-200)/50*10,0,10),0,100):35;
+    const _ch=rain24Chain(); const a24=_ch.val24;
+  let r24=clamp(a24<=50?a24/50*25:a24<=100?25+(a24-50)/50*30:a24<=150?55+(a24-100)/50*20:a24<=200?75+(a24-150)/50*15:90+clamp((a24-200)/50*10,0,10),0,100);
+  if(_ch.rvOk){const _b=clamp(_ch.rvRate/25*30,0,30); r24=clamp(Math.max(r24, r24*0.55+_b),0,100);}
   const wl=TW.ok&&TW.utaphao?clamp((TW.utaphao.level/TW.utaphao.bank)*100,0,130):clamp((3.42/4.0)*100,0,130);
   const w=clamp(wl>100?100:wl>80?80+(wl-80)/20*20:wl/80*80,0,100);
   const cap=TW.ok&&TW.utaphao?clamp((TW.utaphao.level/TW.utaphao.bank)*100,0,100):85;
@@ -756,6 +784,7 @@ function computeRisk(){
     [`ความเข้มฝน ${s.rate.toFixed(1)} มม./ชม. (${rvRain.ok?'เรดาร์ median':'OM'})`,`${Math.round(s.i1)}/100 × 5% = ${(s.i1*.05).toFixed(1)}`,s.i1>50?'var(--orange)':'var(--green)']];
   $('#reasonLines').innerHTML=rl.map(r=>`<div class="rline"><span class="rl">${r[0]}</span><span class="rv" style="color:${r[2]}">${r[1]}</span></div>`).join('')+`<div class="rtotal"><span>รวม → ${lv[0]}</span><span style="color:var(--${lv[1]})">${Math.round(score)}/100</span></div>`;
   riskHistory.push({t:Date.now(),s:score});if(riskHistory.length>60)riskHistory.shift();renderTrend();}
+   renderRain24Chain(); 
 function renderTrend(){const data=riskHistory;if(data.length<2)return;const W=400,H=56,mn=Math.min(...data.map(d=>d.s))-5,mx=Math.max(...data.map(d=>d.s))+5;
   const pts=data.map((d,i)=>`${(i/(data.length-1)*W).toFixed(1)},${(H-4-(d.s-mn)/(mx-mn||1)*(H-10)).toFixed(1)}`),last=data[data.length-1];
   $('#trendBox').innerHTML=`<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:56px" preserveAspectRatio="none"><polyline points="${pts.join(' ')}" fill="none" stroke="#3fd0f0" stroke-width="2" vector-effect="non-scaling-stroke"/><circle cx="${W}" cy="${H-4-(last.s-mn)/(mx-mn||1)*(H-10)}" r="3.5" fill="#ff9432"/></svg><div style="display:flex;justify-content:space-between;font-family:var(--mono);font-size:10px;color:var(--dim)"><span>-5 ชม.</span><span>${data.length>6&&last.s>data[data.length-6].s?'▲ สูงขึ้น':'▼ คงที่/ลดลง'}</span><span>ขณะนี้ ${Math.round(last.s)}</span></div>`;}
@@ -782,7 +811,8 @@ function procOM(){const c=OM.current,H=OM.hourly,D=OM.daily;
   $('#wPres').textContent=Math.round(c.surface_pressure);$('#wCloud').textContent='เมฆ '+Math.round(c.cloud_cover)+'%';
   updateHeroRain();renderChart(H);renderDaily(D);buildNowcast();}
 function updateHeroRain(){const r=rvRain.ok,v=r?rvRain.rate:(curRain??0);const e=$('#vRain');e.textContent=v.toFixed(1);e.classList.remove('fl');void e.offsetWidth;e.classList.add('fl');
-  $('#vRainSub').innerHTML=r?`🛰 เรดาร์ median · 2ชม. ${rvRain.acc2h.toFixed(1)}มม.`:'🌐 Open-Meteo';
+    const _h24=(HTY&&HTY.own&&HTY.own.own24!=null)?HTY.own.own24.toFixed(1):'—';
+  $('#vRainSub').innerHTML=`🧠 HTY24h <b style="color:var(--cyan2)">${_h24}</b> มม. · 🛰 ${r?rvRain.rate.toFixed(1):'—'}/ชม.`;
   $('#rvRainChip').textContent=r?`🛰 ${rvRain.acc2h.toFixed(1)}มม./2ชม. อัตรา ${rvRain.rate.toFixed(1)}`:'🛰 ใช้ OM';}
 function renderChart(H){const bars=[];for(let i=ciIdx-23;i<=ciIdx+24;i++){if(i<0||i>=H.time.length)continue;bars.push({t:H.time[i].slice(11,16),v:H.precipitation[i]||0,fut:i>ciIdx});}
   const W=760,Hh=160,bw=W/bars.length,mx=Math.max(8,...bars.map(b=>b.v));let rects='',nx=null;
@@ -1174,7 +1204,7 @@ const HTY={gfs:null,ecmwf:null,sat:null,own:null,conf:0,lastRun:0,
       el.querySelectorAll('[data-w]').forEach(b=>b.style.width=b.dataset.w+'%');
          }));},
     };
-    
+
     function buildTicker(){const it=[];
   if(rvRain.ok)it.push(`<b>🛰 เรดาร์ median</b> ฝน@หาดใหญ่ ${rvRain.acc2h.toFixed(1)}มม./2ชม. อัตรา ${rvRain.rate.toFixed(1)}/ชม.`);
   if(acc24!=null)it.push(`<b>OM</b> ฝน24ชม ${acc24.toFixed(1)}มม. · 7วัน ${acc7d.toFixed(1)}มม.`);
@@ -1303,6 +1333,31 @@ const io=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting){e.targ
 $$('.rv').forEach(el=>io.observe(el));
 const spy=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting)$$('.nav a').forEach(a=>a.classList.toggle('active',a.getAttribute('href')==='#'+e.target.id));}),{rootMargin:'-40% 0px -55% 0px'});
 $$('main section').forEach(s=>spy.observe(s));
+
+/* ═══ ลำดับแหล่งฝน 24 ชม. (hoist — วางท้ายไฟล์ได้) ═══ */
+function rain24Chain(){
+  const hty=(HTY&&HTY.own&&HTY.own.own24!=null)?HTY.own.own24:null;
+  const htyReady=!!(HTY&&HTY.own);
+  const rvOk=rvRain.ok, rvRate=rvOk?rvRain.rate:0, rvAcc2=rvOk?rvRain.acc2h:0;
+  const om=(acc24!=null)?acc24:null;
+  const val24=hty!=null?hty:(om!=null?om:42);
+  const src24=hty!=null?'HTY':(om!=null?'OM':'sim');
+  return {val24,src24,hty,htyReady,rvOk,rvRate,rvAcc2,om};}
+function renderRain24Chain(){
+  const el=$('#rain24ChainBox'); if(!el)return; const ch=rain24Chain();
+  const pct=v=>Math.min((v||0)/120*100,100);
+  const node=(ic,nm,val,unit,ok,lead,sub)=>{const dot=ok?'var(--green)':(lead?'var(--cyan)':'var(--dim)');
+    return `<div class="r24node ${lead?'lead':''} ${ok?'':'dim'}" title="${sub}">
+      <div class="r24h"><span class="r24ic">${ic}</span><span class="r24nm">${nm}</span>${lead?'<span class="r24tag">นำ</span>':''}</div>
+      <div class="r24v" style="color:${ok||lead?'var(--cyan2)':'var(--dim)'}">${ok||lead?val:'—'}<small>${ok||lead?unit:''}</small></div>
+      <div class="r24bar"><i data-w="${ok?pct(val):0}" style="background:${dot}"></i></div>
+      <div class="r24st"><span class="r24dot" style="background:${dot}"></span>${ok?'พร้อม':(lead?'คำนวณ…':'รอ')}</div></div>`;};
+  const arrow=`<div class="r24arrow"><svg width="14" height="24" viewBox="0 0 14 24"><path d="M2 12 L10 12 M7 8 L11 12 L7 16" fill="none" stroke="#2b6b85" stroke-width="1.6" stroke-linecap="round" class="r24flow"/></svg></div>`;
+  el.innerHTML=
+    node('🧠','HTY ensemble',ch.hty!=null?ch.hty.toFixed(1):'—','มม.',ch.hty!=null,ch.src24==='HTY','ลำดับ 1 · วิเคราะห์ของเรา: GFS+ECMWF+OM+เรดาร์+ดาวเทียม')+arrow+
+    node('🛰','RainViewer',ch.rvRate.toFixed(1),'/ชม.',ch.rvOk,false,'ลำดับ 2 · อ่านพิกเซลเรดาร์จริง = nowcast boost ให้ปัจจัย①')+arrow+
+    node('🌐','Open-Meteo',ch.om!=null?ch.om.toFixed(1):'—','มม.',ch.om!=null,ch.src24==='OM','ลำดับ 3 · สะสม 24 ชม. ย้อนหลังจริง = ฐาน');
+  requestAnimationFrame(()=>requestAnimationFrame(()=>el.querySelectorAll('.r24bar i').forEach(b=>b.style.width=b.dataset.w+'%')));}
 </script>
 </body>
 </html>
