@@ -141,33 +141,33 @@ def tmd_proxy():
 
 @app.route("/tmd/test")
 def tmd_test():
-    """PATH DISCOVERY: ลองทุก path × base → หา endpoint ที่ exist (status != 404)"""
+    """dump ข้อมูลจริง: ลอง province(ไทย) vs lat/lon + โชว์ forecast ชิ้นแรก"""
     if not TMD_TOKEN:
         return jsonify({"has_token":False}),503
-    bases = [TMD_BASE, "https://data.tmd.go.th/nwpapi"]
-    paths = ["/forecast/daily/at","/forecast/hourly/at","/forecast/daily/place","/forecast/hourly/place",
-             "/forecast/daily","/forecast/hourly","/forecasts/daily","/forecasts/hourly",
-             "/forecast/at/daily","/forecast/at/hourly","/forecast/location/daily","/forecast/location/hourly"]
-    today = datetime.date.today().isoformat()
-    probe = {"lat":HY_LAT,"lon":HY_LON,"fields":TMD_FIELDS,"date":today,"hour":0,"duration":3,
-             "province":"สงขลา","amphoe":"หาดใหญ่"}   # ใส่ครอบจักรวาล (404 เกิดก่อนตรวจ param)
-    h = {"accept":"application/json","authorization":f"Bearer {TMD_TOKEN}","User-Agent":"HTY-FloodCommand/5.0"}
-    results=[]; candidates=[]
-    for base in bases:
-        for path in paths:
-            try:
-                r = requests.get(base+path, params=probe, headers=h, timeout=8); st = r.status_code
-                msg = ""
-                try:
-                    msg = r.json().get("message","") if r.headers.get('content-type','').startswith('application/json') else r.text[:60]
-                except Exception: msg = r.text[:60]
-                short = base.replace("https://data.tmd.go.th","")
-                results.append({"base":short,"path":path,"status":st,"msg":msg})
-                if st != 404: candidates.append({"base":base,"path":path,"status":st,"msg":msg})
-            except Exception as e:
-                results.append({"base":base.replace("https://data.tmd.go.th",""),"path":path,"status":"ERR","msg":str(e)[:60]})
-    return jsonify({"note":"status != 404 = endpoint นี้มีจริง (param อาจยังต้องปรับ) | 404 = path ไม่มี",
-                    "candidates":candidates, "all":results})
+    h={"accept":"application/json","authorization":f"Bearer {TMD_TOKEN}","User-Agent":"HTY-FloodCommand/5.0"}
+    today=datetime.date.today().isoformat()
+    def call(path,params):
+        try:
+            r=requests.get(TMD_BASE+path,params=params,headers=h,timeout=15); body=None
+            try: body=r.json()
+            except Exception: body=r.text[:500]
+            fc=0; first=None; keys=None
+            if isinstance(body,dict):
+                wf=body.get("WeatherForecasts") or body.get("weatherForecasts") or body.get("data") or []
+                if isinstance(wf,list) and wf and isinstance(wf[0],dict):
+                    fs=wf[0].get("forecasts",[]) or wf[0].get("forecast",[]) or []
+                    fc=len(fs); first=fs[0] if fs else None
+                    keys=list(wf[0].keys())
+            return {"status":r.status_code,"forecast_count":fc,"location_keys":keys,"first_forecast":first,
+                    "body_preview":(body if not isinstance(body,(dict,)) else None)}
+        except Exception as e:
+            return {"status":"ERR","error":str(e)}
+    return jsonify({
+      "daily_prov":   call("/forecast/location/daily",  {"province":"สงขลา","amphoe":"หาดใหญ่","fields":TMD_FIELDS,"duration":7}),
+      "daily_latlon": call("/forecast/location/daily",  {"lat":HY_LAT,"lon":HY_LON,"fields":TMD_FIELDS,"duration":7}),
+      "hourly_prov":  call("/forecast/location/hourly", {"province":"สงขลา","amphoe":"หาดใหญ่","fields":TMD_FIELDS,"date":today,"hour":0,"duration":24}),
+      "hourly_latlon":call("/forecast/location/hourly", {"lat":HY_LAT,"lon":HY_LON,"fields":TMD_FIELDS,"date":today,"hour":0,"duration":24}),
+      "read_me":"ดูช่องที่ forecast_count > 0 = param ที่ถูก | first_forecast = โครงสร้างจริง (ผมใช้เขียนเว็บรอบหน้า)"})
 
 # ═══════════════ debug / stats ═══════════════
 @app.route("/cache/stats")
