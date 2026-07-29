@@ -1345,24 +1345,27 @@ $('#calUse').addEventListener('change',e=>{CAL.useCal=e.target.checked;if(CAL.us
 renderCal();
 
 /* ═══ CCTV ═══ */
-const CAMS=[{id:'CAM-01',n:'Axis TA200304 (จริง)',st:'real',url:'http://live:Live2025!@ta200304.dyndns.info:5001/axis-cgi/mjpg/video.cgi'},
-  {id:'CAM-02',n:'Axis TA200303 (จริง)',st:'real',url:'http://live:Live2025!@ta200303.dyndns.info:5001/axis-cgi/mjpg/video.cgi'},
-  {id:'CCTV-03',n:'สะพานคลองหวะ (จำลอง)',st:'on',lvl:'4.74 ม.'},{id:'CCTV-04',n:'ตลาดกิมหยง (จำลอง)',st:'on'},
-  {id:'CCTV-05',n:'สะพานคลองแห (จำลอง)',st:'off'},{id:'CCTV-06',n:'อ่างฯ คลองสะเดา (จำลอง)',st:'on'}];
-$('#camgrid').innerHTML=CAMS.map(c=>{
-  if(c.st==='real')return `<div class="cam rv"><div class="camfeed"><img class="realcam" src="${c.url}" alt="${c.n}" onerror="this.style.display='none';this.nextElementSibling.style.display='grid'" loading="lazy"><div class="bigno" style="display:none">สัญญาณขาดหาย<br><span style="font-size:11px;color:var(--yellow)">ตรวจเครือข่าย/DynDNS · เว็บ HTTPS จะบล็อก HTTP</span></div><div class="scan"></div><div class="camhud"><div class="top"><span>${c.id} · AXIS MJPEG</span><span class="live"><i></i>LIVE</span></div><div class="bot"><span>ta20030x.dyndns.info:5001</span><span class="camTime">--:--:--</span></div></div></div><div class="camname"><b>${c.n}</b><span class="chip green">กล้องจริง</span></div></div>`;
-  if(c.st==='on')return `<div class="cam rv"><div class="camfeed"><div class="water"></div><div class="noise"></div><div class="scan"></div><div class="camhud"><div class="top"><span>${c.id}</span><span class="live"><i></i>LIVE</span></div><div class="bot"><span>จำลอง</span><span class="camTime">--:--:--</span></div></div></div><div class="camname"><b>${c.n}</b><span class="chip green">ออนไลน์</span></div></div>`;
-  return `<div class="cam offline rv"><div class="camfeed"><div class="noise" style="opacity:.5"></div><div class="scan"></div><div class="bigno">— NO SIGNAL —<br><span style="font-size:10px;color:var(--yellow)"><span class="spin">◌</span> retry 3/5</span></div><div class="camhud"><div class="top"><span>${c.id}</span><span style="color:var(--red)">OFFLINE</span></div><div class="bot"><span>จำลอง</span><span class="camTime">--:--:--</span></div></div></div><div class="camname"><b>${c.n}</b><span class="chip red">ขัดข้อง</span></div></div>`;}).join('');
+/* ═══ CCTV: กล้องจริงผ่าน proxy (ไม่มีรหัสในเว็บ) + จำลอง ═══ */
+const SIM_CAMS=[{id:'CCTV-03',n:'สะพานคลองหวะ (จำลอง)',st:'on',lvl:'4.74 ม.'},{id:'CCTV-04',n:'ตลาดกิมหยง (จำลอง)',st:'on'},{id:'CCTV-05',n:'สะพานคลองแห (จำลอง)',st:'off'},{id:'CCTV-06',n:'อ่างฯ คลองสะเดา (จำลอง)',st:'on'}];
+function camCardReal(id,n){const base=PROXY.replace(/\/$/,'');
+  return `<div class="cam rv"><div class="camfeed"><img class="realcam" src="${base}/cam/${id}" alt="${n}" onerror="this.style.display='none';this.nextElementSibling.style.display='grid'" loading="lazy"><div class="bigno" style="display:none">สัญญาณขาดหาย<br><span style="font-size:11px;color:var(--yellow)">proxy/กล้องออฟไลน์</span></div><div class="scan"></div><div class="camhud"><div class="top"><span>${id} · HTTPS proxy</span><span class="live"><i></i>LIVE</span></div><div class="bot"><span>credential ซ่อนใน server</span><span class="camTime">--:--:--</span></div></div></div><div class="camname"><b>${n}</b><span class="chip green">กล้องจริง</span></div></div>`;}
+function camCardSim(c){if(c.st==='on')return `<div class="cam rv"><div class="camfeed"><div class="water"></div><div class="noise"></div><div class="scan"></div>${c.lvl?`<div style="position:absolute;right:8px;top:12%;bottom:8%;width:14px;border-right:2px solid rgba(255,255,255,.5)"><b style="position:absolute;right:-4px;left:-30px;bottom:44%;text-align:right;font-size:9px;color:#ffd">${c.lvl}</b></div>`:''}<div class="camhud"><div class="top"><span>${c.id}</span><span class="live"><i></i>LIVE</span></div><div class="bot"><span>จำลอง</span><span class="camTime">--:--:--</span></div></div></div><div class="camname"><b>${c.n}</b><span class="chip green">ออนไลน์</span></div></div>`;
+  return `<div class="cam offline rv"><div class="camfeed"><div class="noise" style="opacity:.5"></div><div class="scan"></div><div class="bigno">— NO SIGNAL —</div><div class="camhud"><div class="top"><span>${c.id}</span><span style="color:var(--red)">OFFLINE</span></div><div class="bot"><span>จำลอง</span><span class="camTime">--:--:--</span></div></div></div><div class="camname"><b>${c.n}</b><span class="chip red">ขัดข้อง</span></div></div>`;}
+function renderCams(realList){const real=(realList||[]).map(r=>camCardReal(r.id,r.label||('กล้อง '+(+r.id+1)))).join('');
+  $('#camgrid').innerHTML=real+SIM_CAMS.map(camCardSim).join('');}
+renderCams([]);
+async function loadRealCams(){try{const list=await fetch(PROXY.replace(/\/$/,'')+'/cam/list',{signal:AbortSignal.timeout?AbortSignal.timeout(8000):undefined}).then(r=>r.json());renderCams(Array.isArray(list)?list:[]);}catch(e){renderCams([]);}}
 
-/* admin */
-$('#loginForm').addEventListener('submit',e=>{e.preventDefault();
-  if($('#admU').value.trim()==='admin'&&$('#admP').value==='hatyai2026'){$('#loginBox').classList.add('none');$('#adminDash').classList.remove('none');$('#admWho').textContent='admin@hty';renderAdmin();}
-  else{$('#loginErr').classList.add('show');$('#loginBox').classList.add('shake');setTimeout(()=>$('#loginBox').classList.remove('shake'),500);}});
-function renderAdmin(){const st=(k,b)=>api[k].st==='ok'?{c:'var(--green)',t:api[k].ms+'ms',u:b}:api[k].st==='err'?{c:'var(--red)',t:'ขัดข้อง',u:0}:{c:'var(--yellow)',t:'…',u:0};
-  const H=[['RainViewer',st('rv',99.1)],['Open-Meteo',st('om',99.6)],['met.no',st('yr',98.9)],['Tide',st('tide',99)],['ThaiWater proxy',st('tw',97)],['TMD (proxy)',st('tmd',95)],['Satellite/GIBS',st('sat',98)],['DMR ArcGIS',st('dmr',97.5)],['CCTV NVR (จำลอง)',{c:'var(--orange)',t:'1 offline',u:91}]];
-  $('#hcards').innerHTML=H.map(h=>`<div class="hcard"><div class="hn"><span class="dot" style="background:${h[1].c};animation:none"></span>${h[0]}</div><div class="hv" style="color:${h[1].c}">${h[1].t}</div><div class="ubar"><i data-w="${h[1].u}" style="background:${h[1].c}"></i></div></div>`).join('');
-  $('#battlist').innerHTML=[['X.219',86,'var(--green)'],['คลองหวะ',74,'var(--green)'],['สะเดา(โซลาร์)',18,'var(--red)'],['UPS',62,'var(--yellow)']].map(b=>`<div class="batt"><span class="bn">${b[0]}</span><span class="bb"><i data-w="${b[1]}" style="background:${b[2]}"></i></span><span class="bp" style="color:${b[2]}">${b[1]}%</span></div>`).join('');
-  renderLogs();requestAnimationFrame(()=>requestAnimationFrame(()=>$$('#adminDash [data-w]').forEach(el=>el.style.width=el.dataset.w+'%')));}
+/* ═══ renderAdmin ใหม่ — guard เต็ม, เข้ากับ modal ใหม่, ไม่ใช้ admWho/adminDash ═══ */
+function renderAdmin(){
+  const $g=id=>document.getElementById(id);
+  const st=k=>(api[k]&&api[k].st==='ok')?{c:'var(--green)',t:(api[k].ms||0)+'ms',u:Math.min(api[k].ms||90,99)}:(api[k]&&api[k].st==='err')?{c:'var(--red)',t:'ขัดข้อง',u:8}:{c:'var(--yellow)',t:'…',u:30};
+  const H=[['RainViewer',st('rv')],['Open-Meteo',st('om')],['met.no',st('yr')],['Tide',st('tide')],['ThaiWater proxy',st('tw')],['TMD (proxy)',st('tmd')],['Satellite/GIBS',st('sat')],['DMR ArcGIS',st('dmr')],['CCTV proxy',{c:'var(--cyan)',t:'HTTPS',u:95}]];
+  const hc=$g('hcards');if(hc)hc.innerHTML=H.map(h=>`<div class="hcard"><div class="hn"><span class="dot" style="background:${h[1].c};animation:none"></span>${h[0]}</div><div class="hv" style="color:${h[1].c}">${h[1].t}</div><div class="ubar"><i data-w="${h[1].u}" style="background:${h[1].c}"></i></div></div>`).join('');
+  const bl=$g('battlist');if(bl)bl.innerHTML=[['X.219',86,'var(--green)'],['คลองหวะ',74,'var(--green)'],['สะเดา(โซลาร์)',18,'var(--red)'],['UPS',62,'var(--yellow)']].map(b=>`<div class="batt"><span class="bn">${b[0]}</span><span class="bb"><i data-w="${b[1]}" style="background:${b[2]}"></i></span><span class="bp" style="color:${b[2]}">${b[1]}%</span></div>`).join('');
+  if(typeof renderLogs==='function')renderLogs();
+  requestAnimationFrame(()=>requestAnimationFrame(()=>document.querySelectorAll('#adminModal [data-w]').forEach(el=>el.style.width=el.dataset.w+'%')));
+}
 
 /* sim loop */
 setInterval(()=>{computeRisk();},6000);
