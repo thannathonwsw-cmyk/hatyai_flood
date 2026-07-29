@@ -1426,25 +1426,31 @@ function waterStatus(level,bank){
   if(pct>=20)  return {cls:'low', txt:'น้ำน้อย',pct};
   return {cls:'dry',txt:(level<0?'แห้ง (ต่ำกว่าเกณฑ์)':'น้ำน้อยมาก'),pct};
 }
-/* ═══ Modal ผู้ดูแล: เปิด/ปิด/login (ไม่มี hint รหัส) ═══ */
+/* ═══ Modal ผู้ดูแล — event delegation (ผูกกับ document · ไม่มีวัน null) ═══ */
 let ADM_AUTH=false;
-const openM=id=>{const m=$('#'+id);if(m){m.classList.add('open');const inp=m.querySelector('input');if(inp)setTimeout(()=>inp.focus(),80);}};
-const closeM=id=>{const m=$('#'+id);if(m)m.classList.remove('open');};
-$$('[data-close]').forEach(b=>b.addEventListener('click',()=>closeM(b.dataset.close)));
-$$('.modal-back').forEach(b=>b.addEventListener('click',e=>{if(e.target===b)b.classList.remove('open');}));
-document.addEventListener('keydown',e=>{if(e.key==='Escape')$$('.modal-back.open').forEach(m=>m.classList.remove('open'));});
-function setAdmTop(){const btn=$('#admTopBtn'),txt=$('#admTopTxt');if(!btn)return;
-  if(ADM_AUTH){btn.classList.add('authed');txt.textContent='🛡 แผงควบคุม';}
-  else{btn.classList.remove('authed');txt.textContent='🔒 ผู้ดูแล';}}
-const on=(id,ev,fn)=>{const e=document.getElementById(id);if(e)e.addEventListener(ev,fn);};   // เกราะ: element ไม่มี = ข้ามเงียบๆ ไม่พัง
-on('admTopBtn','click',()=>{ if(ADM_AUTH){ renderAdmin(); openM('adminModal'); } else openM('loginModal'); });
-on('loginForm2','submit',e=>{e.preventDefault();
-  if($('#admU2').value.trim()==='admin'&&$('#admP2').value==='hatyai2026'){
-    ADM_AUTH=true;$('#loginErr2').textContent='';closeM('loginModal');setAdmTop();renderAdmin();openM('adminModal');
-    log('ระบบ','INFO','ผู้ดูแลเข้าสู่ระบบสำเร็จ');
-  }else{$('#loginErr2').textContent='✕ ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง';const f=$('#loginForm2');if(f){f.classList.add('shake');setTimeout(()=>f.classList.remove('shake'),450);}}
+const openM=id=>{const m=document.getElementById(id);if(m){m.classList.add('open');const inp=m.querySelector('input');if(inp)setTimeout(()=>inp.focus(),80);}};
+const closeM=id=>{const m=document.getElementById(id);if(m)m.classList.remove('open');};
+function setAdmTop(){const btn=document.getElementById('admTopBtn'),txt=document.getElementById('admTopTxt');if(!btn)return;
+  if(ADM_AUTH){btn.classList.add('authed');if(txt)txt.textContent='🛡 แผงควบคุม';}
+  else{btn.classList.remove('authed');if(txt)txt.textContent='🔒 ผู้ดูแล';}}
+document.addEventListener('click',e=>{                                   // document มีเสมอ → ไม่พัง
+  const t=e.target; if(!t||!t.closest)return;
+  if(t.closest('#admTopBtn')){ if(ADM_AUTH){ if(typeof renderAdmin==='function')renderAdmin(); openM('adminModal'); } else openM('loginModal'); return; }
+  const cl=t.closest('[data-close]'); if(cl){ closeM(cl.getAttribute('data-close')); return; }
+  if(t.closest('#admLogout')){ ADM_AUTH=false; setAdmTop(); closeM('adminModal'); if(typeof log==='function')log('ระบบ','INFO','ผู้ดูแลออกจากระบบ'); return; }
 });
-on('admLogout','click',()=>{ADM_AUTH=false;setAdmTop();closeM('adminModal');log('ระบบ','INFO','ผู้ดูแลออกจากระบบ');});
+document.addEventListener('submit',e=>{
+  if(e.target&&e.target.id==='loginForm2'){ e.preventDefault();
+    const u=document.getElementById('admU2'),p=document.getElementById('admP2'),err=document.getElementById('loginErr2');
+    if(u&&p&&u.value.trim()==='admin'&&p.value==='hatyai2026'){
+      ADM_AUTH=true; if(err)err.textContent=''; closeM('loginModal'); setAdmTop();
+      if(typeof renderAdmin==='function')renderAdmin(); openM('adminModal');
+      if(typeof log==='function')log('ระบบ','INFO','ผู้ดูแลเข้าสู่ระบบสำเร็จ');
+    }else{ if(err)err.textContent='✕ ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง'; const f=document.getElementById('loginForm2'); if(f){f.classList.add('shake');setTimeout(()=>f.classList.remove('shake'),450);} }
+  }
+});
+document.addEventListener('keydown',e=>{if(e.key==='Escape')document.querySelectorAll('.modal-back.open').forEach(m=>m.classList.remove('open'));});
+setAdmTop();
 </script>
 </body>
 </html>
