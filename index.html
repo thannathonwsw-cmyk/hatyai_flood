@@ -431,6 +431,37 @@ footer ul{list-style:none}footer li{padding:3px 0}
 .r24flow{stroke-dasharray:3 3;animation:r24dash 1s linear infinite}
 @keyframes r24dash{to{stroke-dashoffset:-6}}
 @media(max-width:640px){.r24chain{flex-direction:column}.r24arrow{transform:rotate(90deg);align-self:center;padding:2px 0}}
+/* ═══ ผู้ดูแล: ปุ่ม topbar + modal + ระดับน้ำ semantic ═══ */
+.adm-topbtn{cursor:pointer;font-family:var(--disp);font-weight:600;font-size:11.5px;border:1px solid var(--line);background:rgba(12,44,59,.7);color:var(--mut);border-radius:999px;padding:5px 13px;display:inline-flex;gap:6px;align-items:center;transition:.25s;position:relative}
+.adm-topbtn:hover{color:var(--cyan2);border-color:var(--cyan);box-shadow:0 0 12px rgba(63,208,240,.2)}
+.adm-topbtn.authed{color:var(--green);border-color:rgba(47,208,140,.5)}
+.adm-topbtn .lockdot{width:6px;height:6px;border-radius:50%;background:var(--dim)}
+.adm-topbtn.authed .lockdot{background:var(--green);box-shadow:0 0 7px var(--green);animation:blink 1.6s infinite}
+.modal-back{position:fixed;inset:0;z-index:200;background:rgba(3,12,18,.72);backdrop-filter:blur(7px);display:none;align-items:center;justify-content:center;padding:20px;animation:mbfade .3s ease}
+.modal-back.open{display:flex}
+@keyframes mbfade{from{opacity:0}to{opacity:1}}
+.modal-box{background:linear-gradient(165deg,var(--panel),#08202c);border:1px solid var(--line);border-radius:18px;box-shadow:0 30px 80px rgba(0,0,0,.6);width:100%;max-width:420px;padding:28px;animation:mbscale .35s cubic-bezier(.2,.9,.3,1.2);position:relative}
+.modal-box.wide{max-width:1080px;max-height:90vh;overflow:auto}
+@keyframes mbscale{from{transform:scale(.9) translateY(14px);opacity:0}to{transform:none;opacity:1}}
+.modal-x{position:absolute;top:14px;right:16px;cursor:pointer;color:var(--dim);font-size:20px;line-height:1;background:none;border:none;transition:.2s}
+.modal-x:hover{color:var(--red);transform:rotate(90deg)}
+.modal-box h3{font-family:var(--disp);font-size:21px;font-weight:700;margin-bottom:4px}
+.modal-box .msub{color:var(--mut);font-size:13px;margin-bottom:18px}
+.modal-box input{width:100%;background:#08202c;border:1px solid var(--line);border-radius:10px;color:var(--ink);font-size:14px;padding:12px 14px;margin-bottom:11px;transition:.25s}
+.modal-box input:focus{outline:none;border-color:var(--cyan);box-shadow:0 0 0 3px rgba(63,208,240,.15)}
+.modal-err{color:var(--red);font-size:12.5px;margin-top:4px;min-height:16px}
+/* ระดับน้ำ: สีตามความหมายจริง (มาก=แดง / น้อย=เขียว) */
+.wst{font-family:var(--disp);font-weight:600;font-size:11px;padding:2px 10px;border-radius:999px;border:1px solid;display:inline-flex;align-items:center;gap:5px}
+.wst::before{content:'';width:6px;height:6px;border-radius:50%;background:currentColor}
+.wst.crit{color:var(--red);border-color:rgba(255,82,82,.5);background:rgba(255,82,82,.12);animation:wstpulse 1.4s infinite}
+.wst.high{color:var(--orange);border-color:rgba(255,148,50,.5);background:rgba(255,148,50,.12)}
+.wst.mid{color:var(--yellow);border-color:rgba(255,210,63,.5);background:rgba(255,210,63,.1)}
+.wst.low{color:var(--cyan2);border-color:rgba(63,208,240,.4);background:rgba(63,208,240,.08)}
+.wst.dry{color:var(--green);border-color:rgba(47,208,140,.4);background:rgba(47,208,140,.08)}
+@keyframes wstpulse{50%{box-shadow:0 0 10px rgba(255,82,82,.4)}}
+.twcard.crit-edge{border-color:rgba(255,82,82,.5);box-shadow:0 0 0 1px rgba(255,82,82,.2)}
+.twcard .twrank{position:absolute;top:12px;right:14px;font-family:var(--mono);font-size:10px;color:var(--dim)}
+.twcard{position:relative}
 @media(max-width:640px){.tiles{grid-template-columns:1fr 1fr}.fcstrip,.camgrid,.raingrid,.srcgrid,.hcards,.twgrid,.tmdgrid{grid-template-columns:1fr}.clockbox{margin-left:0}}
 </style>
 </head>
@@ -450,11 +481,12 @@ footer ul{list-style:none}footer li{padding:3px 0}
     <button class="rbtn2" id="refreshBtn">↻ รีเฟรช</button>
   </div>
   <div class="syschip"><span class="dot" id="sysDot"></span><span id="sysTxt">กำลังเชื่อมต่อ…</span></div>
+    <button class="adm-topbtn" id="admTopBtn" title="เข้าสู่ระบบผู้ดูแล"><span class="lockdot"></span><span id="admTopTxt">🔒 ผู้ดูแล</span></button>
   <div class="clockbox"><div id="clock">--:--:--</div><div id="cdate">—</div></div>
 </header>
 <div class="ticker"><div class="tk" id="tk"></div></div>
 <nav class="nav"><div class="wrap">
-  <a href="#command" class="active">ความเสี่ยง AI</a><a href="#map">แผนที่ & เรดาร์/ดาวเทียม</a><a href="#rain">ฝนสะสม</a><a href="#weather">พยากรณ์ 7 วัน</a><a href="#htyfc">พยากรณ์ HTY</a><a href="#tide">น้ำขึ้นน้ำลง</a><a href="#tmd">TMD กรมอุตุฯ</a><a href="#twstations">ระดับน้ำ ThaiWater</a><a href="#cal">ปรับเทียบเรดาร์</a><a href="#cctv">CCTV</a><a href="#ai">โมเดล AI</a><a href="#admin">แอดมิน</a><a href="#sources">แหล่งข้อมูล</a>
+  <a href="#command" class="active">ความเสี่ยง AI</a><a href="#map">แผนที่ & เรดาร์/ดาวเทียม</a><a href="#rain">ฝนสะสม</a><a href="#weather">พยากรณ์ 7 วัน</a><a href="#htyfc">พยากรณ์ HTY</a><a href="#tide">น้ำขึ้นน้ำลง</a><a href="#tmd">TMD กรมอุตุฯ</a><a href="#twstations">ระดับน้ำ ThaiWater</a><a href="#cal">ปรับเทียบเรดาร์</a><a href="#cctv">CCTV</a><a href="#ai">โมเดล AI</a><a href="#sources">แหล่งข้อมูล</a>
 </div></nav>
 <main>
 <!-- ══ 01 RISK ══ -->
@@ -618,24 +650,6 @@ footer ul{list-style:none}footer li{padding:3px 0}
   </div>
 </div></section>
 
-<!-- ══ 11 ADMIN ══ -->
-<section id="admin"><div class="wrap">
-  <div class="shead rv"><span class="kick">// 11 · แอดมิน</span><h2>แดชบอร์ด<em>ระบบ</em></h2></div><div class="rule"></div>
-  <div class="card login rv" id="loginBox">
-    <div class="avatar"><svg width="30" height="30" viewBox="0 0 24 24" fill="none"><rect x="4" y="10" width="16" height="10" rx="2" stroke="#3fd0f0" stroke-width="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3" stroke="#3fd0f0" stroke-width="2"/></svg></div>
-    <h3>เข้าสู่ระบบ</h3><p>บัญชีเจ้าหน้าที่</p>
-    <form id="loginForm" autocomplete="off"><input type="text" id="admU" placeholder="username" required><input type="password" id="admP" placeholder="password" required><button class="btn" type="submit" style="width:100%">🔓 เข้าสู่ระบบ</button></form>
-    <div class="lerr" id="loginErr">✕ ไม่ถูกต้อง</div><div class="hint">เดโม: admin / hatyai2026</div>
-  </div>
-  <div id="adminDash" class="none">
-    <div class="admhead"><h3>🛠 System Health</h3><div style="display:flex;gap:8px;align-items:center"><span class="chip cy mono" id="admWho"></span><button class="btn" style="padding:7px 16px;font-size:12px" onclick="location.reload()">ออก</button></div></div>
-    <div class="hcards" id="hcards"></div>
-    <div class="adm2">
-      <div class="card"><h4 style="font-family:var(--disp);font-size:15px;font-weight:700;margin-bottom:8px">🔋 แบตเตอรี่สถานี</h4><div id="battlist"></div></div>
-      <div class="card" style="overflow-x:auto"><h4 style="font-family:var(--disp);font-size:15px;font-weight:700;margin-bottom:8px">📋 Event Log</h4><table class="logs"><thead><tr><th>เวลา</th><th>ระบบ</th><th>ระดับ</th><th>รายละเอียด</th></tr></thead><tbody id="logbody"></tbody></table></div>
-    </div>
-  </div>
-</div></section>
 
 <!-- ══ 12 SOURCES ══ -->
 <section id="sources"><div class="wrap">
@@ -651,6 +665,30 @@ footer ul{list-style:none}footer li{padding:3px 0}
     <div class="src live rv"><h4>📍 DMR ArcGIS</h4><div class="org">กรมทรัพยากรธรณี</div><a class="url" href="https://gisportal.dmr.go.th/arcgis/rest/services/ENVI/TIDE_WATER/MapServer" target="_blank">ENVI/TIDE_WATER</a><p>พิกัดสถานีน้ำขึ้นน้ำลง 8 แห่ง</p><div class="tags"><span class="chip green" id="srcDmr">…</span></div></div>
   </div>
 </div></section>
+<!-- ═══ MODAL: เข้าสู่ระบบ (ไม่มีรหัสโผล่) ═══ -->
+<div class="modal-back" id="loginModal"><div class="modal-box">
+  <button class="modal-x" data-close="loginModal">✕</button>
+  <div style="width:60px;height:60px;margin:0 auto 12px;border-radius:50%;background:linear-gradient(150deg,#12485f,#0a2f42);border:1px solid var(--line);display:grid;place-items:center"><svg width="28" height="28" viewBox="0 0 24 24" fill="none"><rect x="4" y="10" width="16" height="10" rx="2" stroke="#3fd0f0" stroke-width="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3" stroke="#3fd0f0" stroke-width="2"/></svg></div>
+  <h3 style="text-align:center">ศูนย์ปฏิบัติการระบบ</h3>
+  <p class="msub" style="text-align:center">เฉพาะเจ้าหน้าที่ · รหัสผ่านไม่แสดงในที่สาธารณะ</p>
+  <form id="loginForm2" autocomplete="off">
+    <input type="text" id="admU2" placeholder="ชื่อผู้ใช้" required>
+    <input type="password" id="admP2" placeholder="รหัสผ่าน" required>
+    <button class="btn" type="submit" style="width:100%;margin-top:4px">🔓 เข้าสู่ระบบ</button>
+    <div class="modal-err" id="loginErr2"></div>
+  </form>
+</div></div>
+
+<!-- ═══ MODAL: แผงควบคุม (ย้ายเนื้อหาแอดมินมาไว้) ═══ -->
+<div class="modal-back" id="adminModal"><div class="modal-box wide">
+  <button class="modal-x" data-close="adminModal">✕</button>
+  <div class="admhead"><h3>🛠 System Health Overview</h3><div style="display:flex;gap:8px;align-items:center"><span class="chip cy mono">admin@hty · ผู้ดูแล</span><button class="btn" style="padding:7px 16px;font-size:12px" id="admLogout">ออกจากระบบ</button></div></div>
+  <div class="hcards" id="hcards"></div>
+  <div class="adm2">
+    <div class="card"><h4 style="font-family:var(--disp);font-size:15px;font-weight:700;margin-bottom:8px">🔋 แบตเตอรี่สถานี</h4><div id="battlist"></div></div>
+    <div class="card" style="overflow-x:auto"><h4 style="font-family:var(--disp);font-size:15px;font-weight:700;margin-bottom:8px">📋 Event Log</h4><table class="logs"><thead><tr><th>เวลา</th><th>ระบบ</th><th>ระดับ</th><th>รายละเอียด</th></tr></thead><tbody id="logbody"></tbody></table></div>
+  </div>
+</div></div>
 </main>
 <footer><div class="wrap"><div class="fgrid">
   <div><h5>HTY FLOOD COMMAND v5</h5><p>ต้นแบบเฝ้าระวังอุทกภัย หาดใหญ่ · 8 แหล่งข้อมูล · cache 2 ชั้น (server+client) · TMD ผ่าน proxy · ดาวเทียม NASA GIBS + RainViewer IR · ปรับเทียบ Z–R อัตโนมัติ</p></div>
@@ -1000,15 +1038,23 @@ async function fetchTW(){api.tw.st='wait';pill('tw');$('#twStatus').textContent=
   pill('tw');srcChip('#srcTw',api.tw);syncChip();computeRisk();buildTicker();}
 $('#twConnect').addEventListener('click',()=>{PROXY=$('#twUrl').value.trim();localStorage.setItem('proxyUrl',PROXY);fetchTW();fetchTMD();});
 function renderTW(){
-  if(!TW.ok||!TW.stations.length){$('#twGrid').innerHTML=`<div class="card" style="grid-column:1/-1"><p style="color:var(--mut);font-size:13px">เชื่อมต่อไม่สำเร็จ — ตรวจว่า proxy รันอยู่ + URL ถูก (Render: https://...onrender.com)</p></div>`+
-    [{n:'สะพานข้ามคลองอู่ตะเภา',l:'คูเต่า หาดใหญ่',v:-0.04,b:0.84,s:'น้ำมาก'},{n:'บ้านคลองหวะ',l:'คอหงส์ หาดใหญ่',v:4.74,b:8.88,s:'ปกติ'},{n:'บ้านม่วงก็อง',l:'พังลา สะเดา',v:9.61,b:16.13,s:'ปกติ'}].map(s=>`<div class="twcard"><h4>${s.n} <span class="chip yellow" style="font-size:9px">จำลอง</span></h4><div class="twloc">${s.l}</div><div class="twval">${s.v.toFixed(2)}<small> ม.รทก.</small></div><div class="twmeta">ตลิ่ง ${s.b} ม. · ${s.s}</div></div>`).join('');return;}
-  const sorted=[...TW.stations].sort((a,b)=>(b.key?1:0)-(a.key?1:0));
-  $('#twGrid').innerHTML=sorted.slice(0,9).map(s=>{const pct=s.bank>0?Math.round(s.level/s.bank*100):0;const sc=pct>100?'red':pct>80?'orange':pct>50?'yellow':'green';
-    return `<div class="twcard"><h4>${s.name} ${s.key?'<span class="chip cy" style="font-size:9px">สำคัญ</span>':''}</h4>
+  if(!TW.ok||!TW.stations.length){$('#twGrid').innerHTML=`<div class="card" style="grid-column:1/-1"><p style="color:var(--mut);font-size:13px">เชื่อมต่อไม่สำเร็จ — ตรวจ URL proxy</p></div>`+
+    [{n:'สะพานข้ามคลองอู่ตะเภา',l:'คูเต่า หาดใหญ่',v:-0.04,b:0.84},{n:'บ้านคลองหวะ',l:'คอหงส์ หาดใหญ่',v:4.74,b:8.88},{n:'บ้านม่วงก็อง',l:'พังลา สะเดา',v:9.61,b:16.13}].map(s=>{const ws=waterStatus(s.v,s.b);
+      return `<div class="twcard"><h4>${s.n} <span class="chip yellow" style="font-size:9px">จำลอง</span></h4><div class="twloc">${s.l}</div><div class="twval">${s.v.toFixed(2)}<small> ม.รทก.</small></div><div class="twmeta">ตลิ่ง ${s.b} ม. · <span class="wst ${ws.cls}">${ws.txt}</span></div></div>`;}).join('');
+    updTideTileFromTW();return;}
+  // เรียง: น้ำเสี่ยงสุด (pct สูง) ขึ้นก่อน → น้ำน้อยลงท้าย
+  const ranked=[...TW.stations].map(s=>({...s,_ws:waterStatus(s.level,s.bank)})).sort((a,b)=>b._ws.pct-a._ws.pct);
+  TW.utaphao=TW.stations.find(s=>s.name.includes('อู่ตะเภา'));
+  $('#twGrid').innerHTML=ranked.slice(0,9).map((s,i)=>{const ws=s._ws;
+    return `<div class="twcard ${ws.cls==='crit'?'crit-edge':''}"><span class="twrank">#${i+1}</span><h4>${s.name} ${s.key?'<span class="chip cy" style="font-size:9px">สำคัญ</span>':''}</h4>
      <div class="twloc">${s.tambon?'ต.'+s.tambon:''} ${s.amphoe?'อ.'+s.amphoe:''} · ${s.river||'ลุ่มน้ำทะเลสาบสงขลา'}</div>
      <div class="twval">${s.level.toFixed(2)}<small> ม.รทก.</small></div>
-     <div class="twmeta">ตลิ่ง ${s.bank.toFixed(2)} ม. · <span class="chip ${sc}" style="font-size:10px">${s.status||'—'}</span> · ${s.agency||''} ${s.time?'· '+s.time:''}</div></div>`;}).join('');}
-
+     <div class="twmeta">ตลิ่ง ${s.bank.toFixed(2)} ม. (${ws.pct.toFixed(0)}%) · <span class="wst ${ws.cls}">${ws.txt}</span> · ${s.agency||''}</div></div>`;}).join('');
+  updTideTileFromTW();}
+function updTideTileFromTW(){
+  if(TW.utaphao){const u=TW.utaphao,ws=waterStatus(u.level,u.bank);
+    $('#vX219').textContent=u.level.toFixed(2);
+    $('#vX219Sub').innerHTML=`ตลิ่ง ${u.bank} ม. · <span class="wst ${ws.cls}" style="font-size:10px">${ws.txt}</span>`;}}
 /* ═══ TMD — graceful (เชื่อมต่อได้ แต่ free token อาจไม่ปล่อย forecast) ═══ */
 async function fetchTMD(){
   api.tmd.st='wait';pill('tmd');$('#tmdWarnBox').innerHTML='';
@@ -1202,9 +1248,11 @@ const HTY={gfs:null,ecmwf:null,sat:null,own:null,conf:0,lastRun:0,
     requestAnimationFrame(()=>requestAnimationFrame(()=>{
       const fg=$('#htyGfg');if(fg)fg.style.strokeDashoffset=off.toFixed(1);
       el.querySelectorAll('[data-w]').forEach(b=>b.style.width=b.dataset.w+'%');
-         }));},
+         }));
+      try{ if(typeof computeRisk==='function') computeRisk(); }catch(e){}   // refresh แถบลำดับ+gauge หลัง engine เสร็จ
+    },
     };
-
+      
     function buildTicker(){const it=[];
   if(rvRain.ok)it.push(`<b>🛰 เรดาร์ median</b> ฝน@หาดใหญ่ ${rvRain.acc2h.toFixed(1)}มม./2ชม. อัตรา ${rvRain.rate.toFixed(1)}/ชม.`);
   if(acc24!=null)it.push(`<b>OM</b> ฝน24ชม ${acc24.toFixed(1)}มม. · 7วัน ${acc7d.toFixed(1)}มม.`);
@@ -1361,6 +1409,42 @@ function renderRain24Chain(){
     node('🛰','RainViewer',ch.rvRate.toFixed(1),'/ชม.',ch.rvOk,false,'ลำดับ 2 · อ่านพิกเซลเรดาร์จริง = nowcast boost ให้ปัจจัย①')+arrow+
     node('🌐','Open-Meteo',ch.om!=null?ch.om.toFixed(1):'—','มม.',ch.om!=null,ch.src24==='OM','ลำดับ 3 · สะสม 24 ชม. ย้อนหลังจริง = ฐาน');
   requestAnimationFrame(()=>requestAnimationFrame(()=>el.querySelectorAll('.r24bar i').forEach(b=>b.style.width=b.dataset.w+'%')));}
+
+/* ═══ อัตราฝนขณะนี้: เรดาร์ → OM current → OM hourly (fusion กัน CORS พัง) ═══ */
+function currentRainRate(){
+  if(rvRain.ok && rvRain.rate>0) return {rate:rvRain.rate, src:'🛰 เรดาร์ pixel'};     // ลำดับ 1: เรดาร์จริง
+  if(curRain!=null && curRain>0) return {rate:curRain, src:'🌐 OM current (blend เรดาร์)'}; // ลำดับ 2: OM current
+  if(OM&&OM.hourly&&OM.hourly.precipitation&&ciIdx>=0){const h=OM.hourly.precipitation[ciIdx]||0; if(h>0)return {rate:h, src:'🌐 OM hourly ล่าสุด'};} // ลำดับ 3
+  return {rate:0, src:rvRain.ok?'🛰 เรดาร์ (ไม่มีฝน)':'⏳ รอข้อมูล'};}
+
+/* ═══ ระดับน้ำ: สี+ป้าย ตาม pct ของตลิ่ง (มาก=แดง / น้อย=เขียว) ═══ */
+function waterStatus(level,bank){
+  const pct = bank>0 ? (level/bank*100) : 0;
+  if(pct>=100) return {cls:'crit',txt:'ล้นตลิ่ง · วิกฤต',pct};
+  if(pct>=80)  return {cls:'high',txt:'น้ำมาก · เฝ้าระวัง',pct};
+  if(pct>=50)  return {cls:'mid', txt:'น้ำปานกลาง',pct};
+  if(pct>=20)  return {cls:'low', txt:'น้ำน้อย',pct};
+  return {cls:'dry',txt:(level<0?'แห้ง (ต่ำกว่าเกณฑ์)':'น้ำน้อยมาก'),pct};
+}
+/* ═══ Modal ผู้ดูแล: เปิด/ปิด/login (ไม่มี hint รหัส) ═══ */
+let ADM_AUTH=false;
+const openM=id=>{const m=$('#'+id);if(m){m.classList.add('open');const inp=m.querySelector('input');if(inp)setTimeout(()=>inp.focus(),80);}};
+const closeM=id=>{const m=$('#'+id);if(m)m.classList.remove('open');};
+$$('[data-close]').forEach(b=>b.addEventListener('click',()=>closeM(b.dataset.close)));
+$$('.modal-back').forEach(b=>b.addEventListener('click',e=>{if(e.target===b)b.classList.remove('open');}));
+document.addEventListener('keydown',e=>{if(e.key==='Escape')$$('.modal-back.open').forEach(m=>m.classList.remove('open'));});
+function setAdmTop(){const btn=$('#admTopBtn'),txt=$('#admTopTxt');if(!btn)return;
+  if(ADM_AUTH){btn.classList.add('authed');txt.textContent='🛡 แผงควบคุม';}
+  else{btn.classList.remove('authed');txt.textContent='🔒 ผู้ดูแล';}}
+$('#admTopBtn').addEventListener('click',()=>{ if(ADM_AUTH){ renderAdmin(); openM('adminModal'); } else openM('loginModal'); });
+$('#loginForm2').addEventListener('submit',e=>{e.preventDefault();
+  if($('#admU2').value.trim()==='admin'&&$('#admP2').value==='hatyai2026'){
+    ADM_AUTH=true;$('#loginErr2').textContent='';closeM('loginModal');setAdmTop();renderAdmin();openM('adminModal');
+    log('ระบบ','INFO','ผู้ดูแลเข้าสู่ระบบสำเร็จ');
+  }else{$('#loginErr2').textContent='✕ ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง';$('#loginForm2').classList.add('shake');setTimeout(()=>$('#loginForm2').classList.remove('shake'),450);}
+});
+$('#admLogout').addEventListener('click',()=>{ADM_AUTH=false;setAdmTop();closeM('adminModal');log('ระบบ','INFO','ผู้ดูแลออกจากระบบ');});
+setAdmTop();
 </script>
 </body>
 </html>
