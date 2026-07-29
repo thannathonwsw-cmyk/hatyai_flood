@@ -679,7 +679,7 @@ footer ul{list-style:none}footer li{padding:3px 0}
   </form>
 </div></div>
 
-<!-- ═══ MODAL: แผงควบคุม (ย้ายเนื้อหาแอดมินมาไว้) ═══ -->
+<!-- ═══ MODAL: แผงควบคุม ═══ -->
 <div class="modal-back" id="adminModal"><div class="modal-box wide">
   <button class="modal-x" data-close="adminModal">✕</button>
   <div class="admhead"><h3>🛠 System Health Overview</h3><div style="display:flex;gap:8px;align-items:center"><span class="chip cy mono">admin@hty · ผู้ดูแล</span><button class="btn" style="padding:7px 16px;font-size:12px" id="admLogout">ออกจากระบบ</button></div></div>
@@ -1436,15 +1436,15 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')$$('.modal-back.open
 function setAdmTop(){const btn=$('#admTopBtn'),txt=$('#admTopTxt');if(!btn)return;
   if(ADM_AUTH){btn.classList.add('authed');txt.textContent='🛡 แผงควบคุม';}
   else{btn.classList.remove('authed');txt.textContent='🔒 ผู้ดูแล';}}
-$('#admTopBtn').addEventListener('click',()=>{ if(ADM_AUTH){ renderAdmin(); openM('adminModal'); } else openM('loginModal'); });
-$('#loginForm2').addEventListener('submit',e=>{e.preventDefault();
+const on=(id,ev,fn)=>{const e=document.getElementById(id);if(e)e.addEventListener(ev,fn);};   // เกราะ: element ไม่มี = ข้ามเงียบๆ ไม่พัง
+on('admTopBtn','click',()=>{ if(ADM_AUTH){ renderAdmin(); openM('adminModal'); } else openM('loginModal'); });
+on('loginForm2','submit',e=>{e.preventDefault();
   if($('#admU2').value.trim()==='admin'&&$('#admP2').value==='hatyai2026'){
     ADM_AUTH=true;$('#loginErr2').textContent='';closeM('loginModal');setAdmTop();renderAdmin();openM('adminModal');
     log('ระบบ','INFO','ผู้ดูแลเข้าสู่ระบบสำเร็จ');
-  }else{$('#loginErr2').textContent='✕ ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง';$('#loginForm2').classList.add('shake');setTimeout(()=>$('#loginForm2').classList.remove('shake'),450);}
+  }else{$('#loginErr2').textContent='✕ ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง';const f=$('#loginForm2');if(f){f.classList.add('shake');setTimeout(()=>f.classList.remove('shake'),450);}}
 });
-$('#admLogout').addEventListener('click',()=>{ADM_AUTH=false;setAdmTop();closeM('adminModal');log('ระบบ','INFO','ผู้ดูแลออกจากระบบ');});
-setAdmTop();
+on('admLogout','click',()=>{ADM_AUTH=false;setAdmTop();closeM('adminModal');log('ระบบ','INFO','ผู้ดูแลออกจากระบบ');});
 </script>
 </body>
 </html>
